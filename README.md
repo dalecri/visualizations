@@ -1,6 +1,6 @@
 # Visualizations
 
-Five visual generators and scenes in one repo, each in its own folder exactly as published:
+Seven visual generators and scenes in one repo, each in its own folder exactly as published:
 
 `heycristobal.com/visualizations/<folder>/`
 
@@ -14,6 +14,10 @@ Five visual generators and scenes in one repo, each in its own folder exactly as
 
 | ASCII Wallpaper Generator | [ASCII-Wallpaper/](ASCII-Wallpaper/) | Seeded procedural ASCII landscape wallpapers with PNG export. |
 
+| IsoScapes | [isocity-todo-app/](isocity-todo-app/) | An isometric city world builder, from the isocity-todo-app repo. |
+
+| Soft Gradient | [soft-gradient-generator/](soft-gradient-generator/) | Blurred gradient backgrounds, downloadable as PNG. |
+
 ## Adding a project
 
 1. Create a folder named for the project and put the project in it (entry point as `index.html`, plus any files it references).
@@ -22,4 +26,4 @@ Five visual generators and scenes in one repo, each in its own folder exactly as
 
 ## History
 
-Consolidated 2026-10-28 from the single-project repos isometric-cube-wallpaper-generator, pixel-night-lamp, and 3d-aesthetic-renders (all files moved byte-for-byte), with polygon-wallpaper-generator and ASCII-Wallpaper added the same day.
+Consolidated 2026-10-28 from the single-project repos isometric-cube-wallpaper-generator, pixel-night-lamp, and 3d-aesthetic-renders (all files moved byte-for-byte), with polygon-wallpaper-generator, ASCII-Wallpaper, isocity-todo-app, and soft-gradient-generator added the same day.
