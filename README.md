@@ -1,6 +1,6 @@
 # Visualizations
 
-Three visual generators and scenes in one repo, each in its own folder exactly as published:
+Five visual generators and scenes in one repo, each in its own folder exactly as published:
 
 `heycristobal.com/visualizations/<folder>/`
 
@@ -10,6 +10,10 @@ Three visual generators and scenes in one repo, each in its own folder exactly a
 | Pixel Twilight Lantern | [pixel-night-lamp/](pixel-night-lamp/) | A pixel twilight lantern scene. |
 | 3D Aesthetic Showcase | [3d-aesthetic-renders/](3d-aesthetic-renders/) | A showcase of 3D aesthetic renders. |
 
+| Polygon Wallpaper Generator | [polygon-wallpaper-generator/](polygon-wallpaper-generator/) | Random low-poly triangle wallpapers, rendered in 4K. |
+
+| ASCII Wallpaper Generator | [ASCII-Wallpaper/](ASCII-Wallpaper/) | Seeded procedural ASCII landscape wallpapers with PNG export. |
+
 ## Adding a project
 
 1. Create a folder named for the project and put the project in it (entry point as `index.html`, plus any files it references).
@@ -18,4 +22,4 @@ Three visual generators and scenes in one repo, each in its own folder exactly a
 
 ## History
 
-Consolidated 2026-10-28 from the single-project repos isometric-cube-wallpaper-generator, pixel-night-lamp, and 3d-aesthetic-renders (all files moved byte-for-byte).
+Consolidated 2026-10-28 from the single-project repos isometric-cube-wallpaper-generator, pixel-night-lamp, and 3d-aesthetic-renders (all files moved byte-for-byte), with polygon-wallpaper-generator and ASCII-Wallpaper added the same day.

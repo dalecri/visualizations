@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polygon Wallpaper Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Smooth fade for the canvas when generating */
+        #polyCanvas {
+            transition: opacity 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="relative w-full h-screen overflow-hidden bg-gray-900 font-sans text-white">
+
+    <!-- Background Canvas -->
+    <canvas id="polyCanvas" class="absolute inset-0 w-full h-full object-cover"></canvas>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+        <div class="bg-black/50 backdrop-blur-md px-6 py-3 rounded-full flex items-center space-x-2">
+            <!-- Refresh SVG -->
+            <svg class="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+            </svg>
+            <span class="font-medium tracking-wide">Rendering 4K...</span>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div id="instructions" class="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm text-xs tracking-widest uppercase font-medium pointer-events-none transition-opacity duration-300">
+        Press [Space] to generate
+    </div>
+    
+    <!-- Download Button -->
+    <button id="downloadBtn" class="absolute bottom-8 left-8 flex items-center space-x-2 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 px-5 py-3 rounded-2xl shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <!-- Download SVG -->
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" x2="12" y1="15" y2="3"/>
+        </svg>
+        <span class="text-sm font-medium">Download</span>
+    </button>
+
+    <script>
+        // --- Utility Functions for Color and Math ---
+        const randomColor = () => ({
+            r: Math.floor(Math.random() * 256),
+            g: Math.floor(Math.random() * 256),
+            b: Math.floor(Math.random() * 256)
+        });
+
+        const interpolateColor = (color1, color2, factor) => {
+            return {
+                r: Math.round(color1.r + factor * (color2.r - color1.r)),
+                g: Math.round(color1.g + factor * (color2.g - color1.g)),
+                b: Math.round(color1.b + factor * (color2.b - color1.b))
+            };
+        };
+
+        const applyLighting = (color, normal, lightDir) => {
+            let intensity = normal.x * lightDir.x + normal.y * lightDir.y + normal.z * lightDir.z;
+            const ambient = 0.6;
+            const diffuse = 0.6;
+            const lightFactor = ambient + (intensity * diffuse);
+            
+            return {
+                r: Math.min(255, Math.max(0, Math.round(color.r * lightFactor))),
+                g: Math.min(255, Math.max(0, Math.round(color.g * lightFactor))),
+                b: Math.min(255, Math.max(0, Math.round(color.b * lightFactor)))
+            };
+        };
+
+        const calculateNormal = (p1, p2, p3) => {
+            const u = { x: p2.x - p1.x, y: p2.y - p1.y, z: p2.z - p1.z };
+            const v = { x: p3.x - p1.x, y: p3.y - p1.y, z: p3.z - p1.z };
+            const n = {
+                x: u.y * v.z - u.z * v.y,
+                y: u.z * v.x - u.x * v.z,
+                z: u.x * v.y - u.y * v.x
+            };
+            const len = Math.sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+            return len === 0 ? {x: 0, y: 0, z: 1} : { x: n.x / len, y: n.y / len, z: n.z / len };
+        };
+
+        // --- Main Application Logic ---
+        const canvas = document.getElementById('polyCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const instructions = document.getElementById('instructions');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        let isGenerating = false;
+
+        const setGeneratingState = (generating) => {
+            isGenerating = generating;
+            if (generating) {
+                canvas.style.opacity = '0.6';
+                loadingOverlay.classList.remove('opacity-0');
+                instructions.classList.add('opacity-0');
+                downloadBtn.disabled = true;
+            } else {
+                canvas.style.opacity = '1';
+                loadingOverlay.classList.add('opacity-0');
+                instructions.classList.remove('opacity-0');
+                downloadBtn.disabled = false;
+            }
+        };
+
+        const generateWallpaper = () => {
+            if (isGenerating) return;
+            setGeneratingState(true);
+            
+            // Timeout allows the UI to paint the loading state before the heavy math locks the thread
+            setTimeout(() => {
+                // Fixed 4K Resolution
+                const width = 3840;
+                const height = 2160;
+                canvas.width = width;
+                canvas.height = height;
+
+                // Randomized constraints per generation
+                const cellSize = Math.floor(Math.random() * (300 - 130 + 1)) + 130; 
+                const variance = 0.5 + (Math.random() * 0.2); // 0.5 to 0.7
+                
+                // Generate a random 3-color gradient
+                const currentPalette = [randomColor(), randomColor(), randomColor()];
+                
+                // Randomize gradient direction
+                const gradientAngle = Math.random() * Math.PI * 2;
+                const gradDirX = Math.cos(gradientAngle);
+                const gradDirY = Math.sin(gradientAngle);
+
+                const margin = cellSize * 2;
+                const cols = Math.ceil((width + margin * 2) / cellSize);
+                const rows = Math.ceil((height + margin * 2) / cellSize);
+
+                const points = [];
+                for (let y = 0; y <= rows; y++) {
+                    const row = [];
+                    for (let x = 0; x <= cols; x++) {
+                        const isEdge = x === 0 || x === cols || y === 0 || y === rows;
+                        const maxJitter = (cellSize * variance) / 2;
+                        
+                        const jX = isEdge ? 0 : (Math.random() - 0.5) * maxJitter * 2;
+                        const jY = isEdge ? 0 : (Math.random() - 0.5) * maxJitter * 2;
+                        const z = (Math.random() - 0.5) * 100 * variance;
+
+                        row.push({
+                            x: (x * cellSize) - margin + jX,
+                            y: (y * cellSize) - margin + jY,
+                            z: z
+                        });
+                    }
+                    points.push(row);
+                }
+
+                const lightDir = { x: -0.5, y: -0.5, z: 1 };
+                const lightLen = Math.sqrt(lightDir.x**2 + lightDir.y**2 + lightDir.z**2);
+                lightDir.x /= lightLen; lightDir.y /= lightLen; lightDir.z /= lightLen;
+
+                // Solid background color (using the first color of the gradient as a base)
+                ctx.fillStyle = `rgb(${currentPalette[0].r}, ${currentPalette[0].g}, ${currentPalette[0].b})`;
+                ctx.fillRect(0, 0, width, height);
+
+                const drawTriangle = (p1, p2, p3) => {
+                    const normal = calculateNormal(p1, p2, p3);
+                    const centroidX = (p1.x + p2.x + p3.x) / 3;
+                    const centroidY = (p1.y + p2.y + p3.y) / 3;
+                    
+                    // Calculate normalized coordinates (-0.5 to 0.5) centered on the screen
+                    const nx = (centroidX / width) - 0.5;
+                    const ny = (centroidY / height) - 0.5;
+                    
+                    // Project onto the random gradient direction vector
+                    const projection = nx * gradDirX + ny * gradDirY;
+                    
+                    // Normalize projection back to a 0 to 1 range (0.707 is approx max distance from center to corner)
+                    const gradientFactor = Math.max(0, Math.min(1, (projection / 0.707) * 0.5 + 0.5));
+
+                    let baseColor;
+                    if (gradientFactor < 0.5) {
+                        baseColor = interpolateColor(currentPalette[0], currentPalette[1], gradientFactor * 2);
+                    } else {
+                        baseColor = interpolateColor(currentPalette[1], currentPalette[2], (gradientFactor - 0.5) * 2);
+                    }
+
+                    const finalColor = applyLighting(baseColor, normal, lightDir);
+                    const colorString = `rgb(${finalColor.r}, ${finalColor.g}, ${finalColor.b})`;
+
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.lineTo(p3.x, p3.y);
+                    ctx.closePath();
+
+                    ctx.fillStyle = colorString;
+                    ctx.fill();
+                    ctx.strokeStyle = colorString;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                };
+
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const p1 = points[y][x];
+                        const p2 = points[y][x+1];
+                        const p3 = points[y+1][x];
+                        const p4 = points[y+1][x+1];
+
+                        if ((x + y) % 2 === 0) {
+                            drawTriangle(p1, p2, p3);
+                            drawTriangle(p2, p4, p3);
+                        } else {
+                            drawTriangle(p1, p2, p4);
+                            drawTriangle(p1, p4, p3);
+                        }
+                    }
+                }
+
+                setGeneratingState(false);
+            }, 50);
+        };
+
+        const handleDownload = () => {
+            if (isGenerating) return;
+            const link = document.createElement('a');
+            link.download = `poly-4k-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+
+        // Event Listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevent scrolling
+                generateWallpaper();
+            }
+        });
+
+        downloadBtn.addEventListener('click', handleDownload);
+
+        // Initial generation on mount
+        window.addEventListener('DOMContentLoaded', generateWallpaper);
+
+    </script>
+</body>
+</html>
