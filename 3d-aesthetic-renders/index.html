@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Aesthetic Showcase</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #080814; color: #dde; font-family: 'Courier New', monospace; }
+
+  #app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
+
+  /* ── Top nav ── */
+  #topbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 10px 16px; flex-shrink: 0;
+    background: rgba(4,4,16,0.97);
+    border-bottom: 1px solid rgba(100,130,255,0.1);
+  }
+  #topbar .label { font-size: 9px; letter-spacing: 3px; color: #445; text-transform: uppercase; white-space: nowrap; }
+  #style-tabs { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+  .tab-btn {
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 10px;
+    font-family: inherit; transition: all 0.15s; letter-spacing: 0.5px;
+    border: 1px solid rgba(80,80,120,0.2); background: transparent; color: #667;
+  }
+  .tab-btn.active { font-weight: bold; }
+  #nav-btns { display: flex; gap: 6px; }
+  .nav-btn {
+    padding: 5px 14px; background: rgba(30,30,60,0.6);
+    border: 1px solid rgba(100,130,255,0.2); border-radius: 4px;
+    color: #a0b0ff; cursor: pointer; font-size: 13px; font-family: inherit;
+    transition: background 0.15s;
+  }
+  .nav-btn:hover { background: rgba(50,50,100,0.7); }
+
+  /* ── Canvas area ── */
+  #canvas-area { flex: 1; position: relative; }
+  #mount { position: absolute; inset: 0; }
+  #ascii-canvas, #crt-canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: none; pointer-events: none;
+  }
+  #ascii-canvas { image-rendering: pixelated; }
+
+  /* ── Info card ── */
+  #info-card {
+    position: absolute; bottom: 20px; left: 20px;
+    background: rgba(4,4,18,0.92); backdrop-filter: blur(12px);
+    border-radius: 10px; padding: 14px 18px; max-width: 370px;
+    border: 1px solid rgba(100,130,255,0.15);
+    transition: border-color 0.3s;
+  }
+  #card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  #card-name { font-size: 17px; font-weight: bold; color: #d0d8f0; }
+  #card-tag {
+    font-size: 8px; letter-spacing: 2px; border-radius: 3px;
+    padding: 2px 6px; border: 1px solid; text-transform: uppercase;
+  }
+  #card-index { font-size: 9px; color: #445; margin-left: auto; }
+  #card-desc { font-size: 12px; color: #8899bb; line-height: 1.65; margin-bottom: 12px; }
+  #prompt-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; opacity: 0.8; }
+  #prompt-text {
+    background: rgba(0,0,0,0.35); border-radius: 6px;
+    padding: 10px 12px; font-size: 11px; color: #99aacc;
+    line-height: 1.7; font-family: 'Courier New', monospace;
+    margin-bottom: 10px; white-space: pre-wrap; word-break: break-word;
+    border: 1px solid rgba(100,130,255,0.08);
+  }
+  #copy-btn {
+    width: 100%; padding: 8px; border-radius: 6px; cursor: pointer;
+    font-size: 11px; font-family: inherit; letter-spacing: 1px;
+    transition: all 0.2s; background: rgba(20,20,45,0.8);
+  }
+  #copy-btn.copied { }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="label">3D AESTHETICS</div>
+    <div id="style-tabs"></div>
+    <div id="nav-btns">
+      <button class="nav-btn" id="btn-prev">←</button>
+      <button class="nav-btn" id="btn-next">→</button>
+    </div>
+  </div>
+  <div id="canvas-area">
+    <div id="mount"></div>
+    <canvas id="ascii-canvas"></canvas>
+    <canvas id="crt-canvas"></canvas>
+    <div id="info-card">
+      <div id="card-header">
+        <span id="card-name"></span>
+        <span id="card-tag"></span>
+        <span id="card-index"></span>
+      </div>
+      <div id="card-desc"></div>
+      <div id="prompt-label">Prompt Template</div>
+      <div id="prompt-text"></div>
+      <button id="copy-btn">⎘ COPY PROMPT</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const STYLES = [
+  {
+    id:"lowpoly", name:"Low-Poly", tag:"GEOMETRY", color:"#5bc4ff",
+    desc:"Flat-shaded triangles with visible facets. Minimal and fast.",
+    prompt:`Build a [APP TYPE] in Three.js with a low-poly aesthetic. Use IcosahedronGeometry with flatShading:true and vertex colors from a [COLOR PALETTE] palette. The scene features [SUBJECT] as a flat-shaded mesh that [BEHAVIOR]. Dark background, minimal UI.`
+  },
+  {
+    id:"isometric", name:"Isometric", tag:"CAMERA", color:"#ffb347",
+    desc:"Orthographic projection at 45°. Classic strategy-game look.",
+    prompt:`Build a [APP TYPE] in Three.js with an isometric aesthetic. Use OrthographicCamera at position (10,10,10) looking at origin. Show [SUBJECT] as BoxGeometry blocks in [LAYOUT]. Use a flat-shaded [COLOR PALETTE] palette. Add [INTERACTIVE ELEMENT].`
+  },
+  {
+    id:"wireframe", name:"Wireframe", tag:"EDGES", color:"#50fa7b",
+    desc:"Only geometry edges drawn. Tron / sci-fi vibes.",
+    prompt:`Build a [APP TYPE] in Three.js with a wireframe aesthetic. Use EdgesGeometry + LineSegments only — no fill. Render [SUBJECT] as glowing [COLOR] wireframe lines on a near-black background. Add a matching PointLight for glow. Object should [BEHAVIOR].`
+  },
+  {
+    id:"psx", name:"PSX Style", tag:"RETRO", color:"#ff79c6",
+    desc:"Vertex snapping & wobble each frame. Simulates PS1 rendering quirks.",
+    prompt:`Build a [APP TYPE] in Three.js with a PSX/PS1 aesthetic. Each frame, jitter raw position buffer attributes by ±0.03 to simulate PS1 vertex wobble. Use flatShading:true and low polygon counts. Render [SUBJECT] in [COLOR] on a dark moody background.`
+  },
+  {
+    id:"ascii", name:"ASCII Render", tag:"SHADER", color:"#00ff88",
+    desc:"3D scene sampled and redrawn as text characters each frame.",
+    prompt:`Build a [APP TYPE] in Three.js with ASCII rendering. Render the scene to a WebGLRenderTarget at 80×45, read pixels with readRenderTargetPixels each frame, map luminance to "@%#*+=−:· " and draw to a 2D canvas overlay filling the viewport. Color: [COLOR] monochrome. Subject: [SUBJECT].`
+  },
+  {
+    id:"crt", name:"CRT / VHS", tag:"OVERLAY", color:"#bd93f9",
+    desc:"Scanlines, noise, vignette layered over 3D. Analog display feel.",
+    prompt:`Build a [APP TYPE] in Three.js with a CRT/VHS overlay. Render the 3D scene normally, then draw a transparent canvas overlay each frame with: scanlines every 3px at 25% opacity, random white noise pixels, and a radial vignette gradient. Subject: [SUBJECT] in [COLOR PALETTE].`
+  },
+  {
+    id:"clay", name:"Claymorph", tag:"MATERIAL", color:"#ffb86c",
+    desc:"Smooth mesh with warm multi-point lighting. Squishy feel.",
+    prompt:`Build a [APP TYPE] in Three.js with a clay aesthetic. Use MeshStandardMaterial with roughness 0.55, metalness 0 on high-poly geometry. Light with 3 PointLights in warm [COLOR] tones from different angles to fake subsurface scattering. Subject: [SUBJECT].`
+  },
+  {
+    id:"paper", name:"Paper Craft", tag:"LAYOUT", color:"#c4a882",
+    desc:"Layered planes like a diorama. Handmade aesthetic.",
+    prompt:`Build a [APP TYPE] in Three.js with a paper craft / diorama aesthetic. Use PlaneGeometry layers at increasing Z offsets, each smaller and slightly rotated, with warm kraft paper colors. Light background (0xf5efe0). MeshLambertMaterial. Subject: [SUBJECT] as layered cutout silhouettes.`
+  },
+  {
+    id:"particle", name:"Particles", tag:"SYSTEM", color:"#8be9fd",
+    desc:"4000 drifting points forming a sphere cluster.",
+    prompt:`Build a [APP TYPE] in Three.js with a particle system aesthetic. Use BufferGeometry with 4000+ points distributed across [SHAPE]. Each frame, drift particles by a small velocity and bounce at bounds. PointsMaterial with sizeAttenuation. Color: [COLOR]. Shape forms: [SUBJECT].`
+  },
+  {
+    id:"hologram", name:"Holographic", tag:"FX", color:"#00ffff",
+    desc:"Transparent iridescent shell with pulsing edge lines.",
+    prompt:`Build a [APP TYPE] in Three.js with a holographic aesthetic. Render [SUBJECT] as: (1) LineSegments from EdgesGeometry with cyan LineBasicMaterial at pulsing opacity via Math.sin, and (2) transparent MeshBasicMaterial fill at ~8% opacity. Add cyan and blue PointLights. Dark space background.`
+  },
+  {
+    id:"raymarching", name:"Ray Marching", tag:"GLSL", color:"#ff5555",
+    desc:"Pure GLSL shader math. No geometry — just signed distance fields.",
+    prompt:`Build a [APP TYPE] in Three.js with a ray marching shader. Use OrthographicCamera(-1,1,1,-1) and a fullscreen PlaneGeometry(2,2) with ShaderMaterial. In the fragment shader, implement a ray marcher with SDF primitives (sdSphere, sdBox, sdTorus). Animate with iTime uniform. Subject: [SUBJECT AS SDF]. Colors: [COLOR PALETTE].`
+  },
+];
+
+// ── State ──
+let currentIndex = 0;
+let renderer, scene, camera, renderTarget;
+let currentObject = null;
+let effectData = {};
+let animFrame = null;
+
+const mount      = document.getElementById('mount');
+const asciiCV    = document.getElementById('ascii-canvas');
+const crtCV      = document.getElementById('crt-canvas');
+const tabsEl     = document.getElementById('style-tabs');
+const cardName   = document.getElementById('card-name');
+const cardTag    = document.getElementById('card-tag');
+const cardIndex  = document.getElementById('card-index');
+const cardDesc   = document.getElementById('card-desc');
+const promptText = document.getElementById('prompt-text');
+const promptLbl  = document.getElementById('prompt-label');
+const copyBtn    = document.getElementById('copy-btn');
+const infoCard   = document.getElementById('info-card');
+
+// ── Build tabs ──
+STYLES.forEach((s, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'tab-btn';
+  btn.textContent = s.name;
+  btn.dataset.index = i;
+  btn.onclick = () => setStyle(i);
+  tabsEl.appendChild(btn);
+});
+
+document.getElementById('btn-prev').onclick = () => setStyle((currentIndex - 1 + STYLES.length) % STYLES.length);
+document.getElementById('btn-next').onclick = () => setStyle((currentIndex + 1) % STYLES.length);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  setStyle((currentIndex - 1 + STYLES.length) % STYLES.length);
+  if (e.key === 'ArrowRight') setStyle((currentIndex + 1) % STYLES.length);
+});
+
+// ── Copy prompt ──
+copyBtn.onclick = () => {
+  const s = STYLES[currentIndex];
+  navigator.clipboard.writeText(s.prompt).then(() => {
+    copyBtn.textContent = '✓ COPIED';
+    copyBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = '⎘ COPY PROMPT';
+      copyBtn.classList.remove('copied');
+    }, 1800);
+  });
+};
+
+// ── Init Three.js ──
+function initThree() {
+  const W = mount.clientWidth, H = mount.clientHeight;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  mount.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 1000);
+  camera.position.set(0, 0, 4);
+
+  renderTarget = new THREE.WebGLRenderTarget(80, 45);
+
+  animate();
+  setStyle(0);
+
+  window.addEventListener('resize', () => {
+    const nW = mount.clientWidth, nH = mount.clientHeight;
+    if (camera.isPerspectiveCamera) { camera.aspect = nW / nH; camera.updateProjectionMatrix(); }
+    renderer.setSize(nW, nH);
+    asciiCV.width  = nW; asciiCV.height  = nH;
+    crtCV.width    = nW; crtCV.height    = nH;
+  });
+}
+
+// ── Animation loop ──
+function animate() {
+  animFrame = requestAnimationFrame(animate);
+  const s = STYLES[currentIndex].id;
+
+  if (currentObject && s !== 'raymarching') {
+    currentObject.rotation.y += 0.005;
+    if (s !== 'isometric' && s !== 'paper') currentObject.rotation.x += 0.003;
+  }
+
+  // PSX jitter
+  if (s === 'psx' && effectData.psx) {
+    const { orig, pa } = effectData.psx;
+    for (let i = 0; i < orig.length; i++) pa.array[i] = orig[i] + (Math.random() - 0.5) * 0.03;
+    pa.needsUpdate = true;
+  }
+
+  // Particles
+  if (s === 'particle' && effectData.ptcl) {
+    const { pos, vel, geom } = effectData.ptcl;
+    for (let i = 0; i < vel.length / 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        pos[i*3+j] += vel[i*3+j];
+        if (Math.abs(pos[i*3+j]) > 1.8) vel[i*3+j] *= -1;
+      }
+    }
+    geom.attributes.position.needsUpdate = true;
+  }
+
+  // Raymarching
+  if (s === 'raymarching' && effectData.rMat) effectData.rMat.uniforms.iTime.value += 0.016;
+
+  // Hologram pulse
+  if (s === 'hologram' && effectData.holo) {
+    effectData.holo.t = (effectData.holo.t || 0) + 0.04;
+    const k = effectData.holo.t;
+    effectData.holo.inner.material.opacity = 0.04 + Math.abs(Math.sin(k)) * 0.12;
+    effectData.holo.lines.material.opacity = 0.35 + Math.abs(Math.sin(k * 0.7)) * 0.45;
+  }
+
+  // ASCII: render → read pixels → draw chars
+  if (s === 'ascii') {
+    renderer.setRenderTarget(renderTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear();
+
+    const rW = renderTarget.width, rH = renderTarget.height;
+    const buf = new Uint8Array(rW * rH * 4);
+    renderer.readRenderTargetPixels(renderTarget, 0, 0, rW, rH, buf);
+
+    const ctx = asciiCV.getContext('2d');
+    const cw  = asciiCV.width / rW, ch = asciiCV.height / rH;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, asciiCV.width, asciiCV.height);
+    const CHARS = '@%#*+=\u22120 :\u00b7  ';
+    ctx.font = `bold ${Math.ceil(ch)}px monospace`;
+    ctx.textBaseline = 'top';
+    for (let y = 0; y < rH; y++) {
+      for (let x = 0; x < rW; x++) {
+        const idx = (rH - 1 - y) * rW + x;
+        const r = buf[idx*4], g = buf[idx*4+1], b = buf[idx*4+2];
+        const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+        const c = CHARS[Math.min(Math.floor(lum * CHARS.length), CHARS.length - 1)];
+        ctx.fillStyle = `hsl(120,90%,${Math.floor(12 + lum * 68)}%)`;
+        ctx.fillText(c, x * cw, y * ch);
+      }
+    }
+  } else {
+    renderer.render(scene, camera);
+  }
+
+  // CRT overlay
+  if (s === 'crt') {
+    const ctx = crtCV.getContext('2d');
+    ctx.clearRect(0, 0, crtCV.width, crtCV.height);
+    for (let sy = 0; sy < crtCV.height; sy += 3) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(0, sy, crtCV.width, 1);
+    }
+    for (let i = 0; i < 350; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.035})`;
+      ctx.fillRect(Math.random() * crtCV.width, Math.random() * crtCV.height, 1 + Math.random() * 4, 1);
+    }
+    const grad = ctx.createRadialGradient(crtCV.width/2, crtCV.height/2, crtCV.height*0.2, crtCV.width/2, crtCV.height/2, crtCV.height);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.65)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, crtCV.width, crtCV.height);
+  }
+}
+
+// ── Set style ──
+function setStyle(index) {
+  currentIndex = index;
+  const s = STYLES[index];
+
+  // Update tabs
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+    btn.style.borderColor  = i === index ? s.color : 'rgba(80,80,120,0.2)';
+    btn.style.background   = i === index ? s.color + '22' : 'transparent';
+    btn.style.color        = i === index ? s.color : '#667';
+  });
+
+  // Update card
+  cardName.textContent  = s.name;
+  cardTag.textContent   = s.tag;
+  cardTag.style.color   = s.color;
+  cardTag.style.borderColor = s.color;
+  cardIndex.textContent = `${index + 1}/${STYLES.length}`;
+  cardDesc.textContent  = s.desc;
+  promptText.textContent = s.prompt;
+  promptLbl.style.color  = s.color;
+  promptText.style.borderColor = s.color + '28';
+  copyBtn.style.borderColor = s.color + '66';
+  copyBtn.style.color   = '#8899bb';
+  copyBtn.style.background = 'rgba(20,20,45,0.8)';
+  infoCard.style.borderColor = s.color + '44';
+
+  // Hide overlays
+  asciiCV.style.display = 'none';
+  crtCV.style.display   = 'none';
+
+  // Clear scene
+  while (scene.children.length) scene.remove(scene.children[0]);
+  currentObject = null;
+  effectData    = {};
+
+  // Reset camera
+  const W = mount.clientWidth, H = mount.clientHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 1000);
+  camera.position.set(0, 0, 4);
+  scene.background = new THREE.Color(0x0f0f1f);
+  scene.fog = null;
+
+  const id = s.id;
+
+  // Helpers
+  const addLight = (color, intensity, x, y, z, type = 'dir') => {
+    let l;
+    if (type === 'ambient') l = new THREE.AmbientLight(color, intensity);
+    else if (type === 'point') { l = new THREE.PointLight(color, intensity, 10); l.position.set(x,y,z); }
+    else { l = new THREE.DirectionalLight(color, intensity); l.position.set(x,y,z); }
+    scene.add(l); return l;
+  };
+
+  /* ── LOW-POLY ── */
+  if (id === 'lowpoly') {
+    addLight(0xffffff, 0.4, 0,0,0, 'ambient');
+    addLight(0xffffff, 1.2, 5,5,5);
+    const geo = new THREE.IcosahedronGeometry(1.3, 3).toNonIndexed();
+    geo.computeVertexNormals();
+    const pal = [[0.25,0.45,1],[0.35,0.3,0.9],[0.15,0.65,0.8],[0.45,0.6,0.95]];
+    const cols = new Float32Array(geo.attributes.position.count * 3);
+    for (let i = 0; i < geo.attributes.position.count; i += 3) {
+      const c = pal[Math.floor(Math.random() * pal.length)];
+      for (let j = 0; j < 3; j++) {
+        cols[(i+j)*3]   = c[0] + (Math.random()-0.5)*0.08;
+        cols[(i+j)*3+1] = c[1] + (Math.random()-0.5)*0.08;
+        cols[(i+j)*3+2] = c[2] + (Math.random()-0.5)*0.08;
+      }
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    currentObject = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true }));
+    scene.add(currentObject);
+  }
+
+  /* ── ISOMETRIC ── */
+  else if (id === 'isometric') {
+    scene.background = new THREE.Color(0x12121e);
+    addLight(0xffffff, 0.5, 0,0,0, 'ambient');
+    addLight(0xffffff, 1.0, 3,5,3);
+    const aspect = W/H, range = 4.5;
+    camera = new THREE.OrthographicCamera(-range*aspect, range*aspect, range, -range, 0.1, 1000);
+    camera.position.set(10,10,10); camera.lookAt(0,0,0);
+    const group = new THREE.Group();
+    const colors = [0x5bc4ff,0xffb347,0x50fa7b,0xff79c6,0xbd93f9,0x8be9fd];
+    for (let x=-2;x<=2;x++) for (let z=-2;z<=2;z++) {
+      const h = 0.4 + Math.random()*1.5;
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(0.78,h,0.78),
+        new THREE.MeshPhongMaterial({ color: colors[Math.floor(Math.random()*colors.length)], flatShading:true })
+      );
+      m.position.set(x*0.9, h/2-0.5, z*0.9);
+      group.add(m);
+    }
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(9,9), new THREE.MeshPhongMaterial({color:0x1a1a2e}));
+    ground.rotation.x = -Math.PI/2; ground.position.y = -0.5;
+    group.add(ground);
+    scene.add(group);
+    currentObject = group;
+  }
+
+  /* ── WIREFRAME ── */
+  else if (id === 'wireframe') {
+    scene.background = new THREE.Color(0x000510);
+    addLight(0x001108, 1, 0,0,0, 'ambient');
+    const outer = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.3,4)),
+      new THREE.LineBasicMaterial({ color:0x00ff88 })
+    );
+    const inner = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.72,2)),
+      new THREE.LineBasicMaterial({ color:0x005522 })
+    );
+    const g = new THREE.Group(); g.add(outer); g.add(inner);
+    scene.add(g);
+    addLight(0x00ff88, 1, 0,0,0, 'point');
+    currentObject = g;
+  }
+
+  /* ── PSX ── */
+  else if (id === 'psx') {
+    scene.background = new THREE.Color(0x150820);
+    addLight(0xffffff, 0.3, 0,0,0, 'ambient');
+    addLight(0xffffff, 1.0, 4,4,4);
+    const geo = new THREE.TorusKnotGeometry(0.9, 0.32, 64, 8);
+    const orig = geo.attributes.position.array.slice();
+    currentObject = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color:0xff44aa, flatShading:true }));
+    scene.add(currentObject);
+    effectData.psx = { orig, pa: geo.attributes.position };
+  }
+
+  /* ── ASCII ── */
+  else if (id === 'ascii') {
+    scene.background = new THREE.Color(0x001400);
+    addLight(0x88ff88, 0.3, 0,0,0, 'ambient');
+    addLight(0xffffff, 1.5, 3,3,4);
+    currentObject = new THREE.Mesh(
+      new THREE.TorusGeometry(0.9,0.38,16,64),
+      new THREE.MeshPhongMaterial({ color:0xffffff, emissive:0x558855 })
+    );
+    scene.add(currentObject);
+    asciiCV.style.display = 'block';
+    asciiCV.width  = W; asciiCV.height = H;
+  }
+
+  /* ── CRT ── */
+  else if (id === 'crt') {
+    scene.background = new THREE.Color(0x060310);
+    addLight(0xffffff, 0.3, 0,0,0, 'ambient');
+    addLight(0xffffff, 1.2, 5,3,4);
+    currentObject = new THREE.Mesh(
+      new THREE.BoxGeometry(1.3,1.3,1.3),
+      new THREE.MeshPhongMaterial({ color:0xcc00cc, emissive:0x550055, flatShading:true })
+    );
+    scene.add(currentObject);
+    crtCV.style.display = 'block';
+    crtCV.width = W; crtCV.height = H;
+  }
+
+  /* ── CLAY ── */
+  else if (id === 'clay') {
+    scene.background = new THREE.Color(0x1a0805);
+    addLight(0xffaa88, 0.3, 0,0,0, 'ambient');
+    addLight(0xffeedd, 1.5, 3,3,3);
+    addLight(0xff8844, 2.0, -2,2,2, 'point');
+    addLight(0xffccaa, 1.5, 0,-3,-2, 'point');
+    currentObject = new THREE.Mesh(
+      new THREE.SphereGeometry(1.2,64,64),
+      new THREE.MeshStandardMaterial({ color:0xf4845f, roughness:0.55, metalness:0 })
+    );
+    scene.add(currentObject);
+  }
+
+  /* ── PAPER ── */
+  else if (id === 'paper') {
+    scene.background = new THREE.Color(0xf5efe0);
+    addLight(0xffffff, 0.8, 0,0,0, 'ambient');
+    addLight(0xffe0c0, 1.2, 3,5,4);
+    addLight(0xc0a070, 0.3, -2,-1,-1);
+    const group = new THREE.Group();
+    [{w:2.0,c:0xf5e6c8,rz:0.00,z:0.00},{w:1.7,c:0xe8d5a8,rz:0.15,z:-0.12},
+     {w:1.4,c:0xd4b896,rz:-0.12,z:-0.24},{w:1.1,c:0xc4a882,rz:0.20,z:-0.36},
+     {w:0.8,c:0xb09070,rz:-0.18,z:-0.48}].forEach(({w,c,rz,z}) => {
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(w,w),
+        new THREE.MeshLambertMaterial({color:c, side:THREE.DoubleSide})
+      );
+      m.rotation.z = rz; m.position.z = z;
+      group.add(m);
+    });
+    scene.add(group);
+    currentObject = group;
+  }
+
+  /* ── PARTICLES ── */
+  else if (id === 'particle') {
+    scene.background = new THREE.Color(0x030312);
+    const count = 4000;
+    const pos = new Float32Array(count*3), vel = new Float32Array(count*3);
+    for (let i=0;i<count;i++) {
+      const theta=Math.random()*Math.PI*2, phi=Math.acos(2*Math.random()-1), r=0.7+(Math.random()-0.5)*0.6;
+      pos[i*3]  =r*Math.sin(phi)*Math.cos(theta);
+      pos[i*3+1]=r*Math.sin(phi)*Math.sin(theta);
+      pos[i*3+2]=r*Math.cos(phi);
+      vel[i*3]  =(Math.random()-0.5)*0.007;
+      vel[i*3+1]=(Math.random()-0.5)*0.007;
+      vel[i*3+2]=(Math.random()-0.5)*0.007;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    currentObject = new THREE.Points(geom, new THREE.PointsMaterial({color:0x66aaff, size:0.018, transparent:true, opacity:0.85}));
+    scene.add(currentObject);
+    effectData.ptcl = { pos, vel, geom };
+  }
+
+  /* ── HOLOGRAM ── */
+  else if (id === 'hologram') {
+    scene.background = new THREE.Color(0x020a15);
+    addLight(0x00aaff, 0.2, 0,0,0, 'ambient');
+    addLight(0x00ffff, 1.5, 3,0,2, 'point');
+    addLight(0x0088ff, 1.0, -2,0,-2, 'point');
+    const lines = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.3,4)),
+      new THREE.LineBasicMaterial({color:0x00ffff, transparent:true, opacity:0.7})
+    );
+    const inner = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.3,2),
+      new THREE.MeshBasicMaterial({color:0x00bbff, transparent:true, opacity:0.08, side:THREE.DoubleSide, depthWrite:false})
+    );
+    const g = new THREE.Group(); g.add(lines); g.add(inner);
+    scene.add(g);
+    currentObject = g;
+    effectData.holo = { lines, inner, t:0 };
+  }
+
+  /* ── RAY MARCHING ── */
+  else if (id === 'raymarching') {
+    scene.background = new THREE.Color(0x000000);
+    camera = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { iTime:{value:0}, iRes:{value:new THREE.Vector2(W,H)} },
+      vertexShader:`void main(){ gl_Position=vec4(position,1.0); }`,
+      fragmentShader:`
+        uniform float iTime;
+        uniform vec2  iRes;
+        float sdTorus(vec3 p,vec2 t){ vec2 q=vec2(length(p.xz)-t.x,p.y); return length(q)-t.y; }
+        float sdBox(vec3 p,vec3 b){ vec3 d=abs(p)-b; return length(max(d,0.0))+min(max(d.x,max(d.y,d.z)),0.0); }
+        float map(vec3 p){
+          float t=iTime; float s=sin(t),c=cos(t);
+          vec3 q=p; q.xz=mat2(c,s,-s,c)*q.xz;
+          float d1=sdTorus(q,vec2(0.7,0.28));
+          vec3 r=p; float s2=sin(t*0.7),c2=cos(t*0.7);
+          r.xy=mat2(c2,s2,-s2,c2)*r.xy;
+          float d2=sdBox(r,vec3(0.42));
+          return min(d1,d2);
+        }
+        vec3 calcNorm(vec3 p){
+          vec2 e=vec2(0.001,0.0);
+          return normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
+        }
+        void main(){
+          vec2 uv=(gl_FragCoord.xy-iRes*0.5)/iRes.y;
+          vec3 ro=vec3(0,0,2.5),rd=normalize(vec3(uv,-1.5));
+          float d=0.0;
+          for(int i=0;i<80;i++){ float h=map(ro+rd*d); if(h<0.001||d>10.0) break; d+=h; }
+          vec3 col=vec3(0);
+          if(d<10.0){
+            vec3 p=ro+rd*d,n=calcNorm(p),ld=normalize(vec3(1,1.5,2));
+            float diff=max(dot(n,ld),0.0),spec=pow(max(dot(reflect(-ld,n),-rd),0.0),48.0);
+            float rim=pow(1.0-max(dot(n,-rd),0.0),3.0);
+            col=mix(vec3(0,0.6,1),vec3(1,0.1,0.9),n.y*0.5+0.5)*(diff+0.15)+spec*0.9+rim*vec3(0.2,0.8,1)*0.6;
+          }
+          gl_FragColor=vec4(col,1.0);
+        }
+      `
+    });
+    currentObject = new THREE.Mesh(new THREE.PlaneGeometry(2,2), mat);
+    scene.add(currentObject);
+    effectData.rMat = mat;
+  }
+}
+
+// ── Start ──
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initThree);
+} else {
+  initThree();
+}
+</script>
+</body>
+</html>

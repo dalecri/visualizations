@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Twilight Lantern</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a0a;
+            color: #f5f5f5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        canvas {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease;
+        }
+
+        .theme-button {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .theme-button:hover {
+            border-color: #525252;
+            background-color: rgba(38, 38, 38, 0.6);
+        }
+
+        .theme-button.active {
+            background-color: rgba(38, 38, 38, 0.9);
+            border-color: #a3a3a3;
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Ambient Glow Layer */
+        #ambient-glow {
+            position: absolute;
+            top: -2rem;
+            bottom: -2rem;
+            left: -2rem;
+            right: -2rem;
+            border-radius: 1.5rem;
+            opacity: 0.3;
+            filter: blur(48px);
+            transition: background-color 0.7s ease;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.95); }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 md:p-8 selection:bg-rose-500 selection:text-white">
+
+    <!-- Header Bar -->
+    <header class="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-4 py-2 border-b border-neutral-800/80">
+        <div class="flex items-center gap-3">
+            <div id="header-swatch" class="w-8 h-8 rounded-lg shadow-inner flex items-center justify-center transition-colors duration-500" style="background-color: #772663;">
+                <svg class="w-4 h-4 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L14.4 8.6L21 11L14.4 13.4L12 20L9.6 13.4L3 11L9.6 8.6L12 2Z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold tracking-tight">Pixel Twilight Lantern</h1>
+                <p class="text-xs text-neutral-400">Click artwork or select a palette below to change colorways</p>
+            </div>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="flex items-center gap-2">
+            <button id="flicker-toggle" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30" title="Toggle subtle glow breathing flicker">
+                <span id="flicker-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="flicker-text">Glow Pulse: ON</span>
+            </button>
+
+            <button id="download-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors" title="Download crisp 960x960 PNG">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Export PNG</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Interactive Stage -->
+    <main class="flex-1 w-full max-w-4xl flex flex-col items-center justify-center py-8">
+        <div class="relative group flex flex-col items-center">
+            
+            <div id="ambient-glow" style="background-color: #772663;"></div>
+
+            <!-- Interactive Artwork Wrapper -->
+            <div id="canvas-wrapper" class="relative cursor-pointer rounded-2xl p-2.5 bg-neutral-900/90 border border-neutral-800/80 shadow-2xl backdrop-blur-xl transition-transform active:scale-[0.98] select-none hover:border-neutral-700" title="Click to cycle next theme">
+                <canvas id="pixel-canvas" class="rounded-xl"></canvas>
+
+                <!-- Hover overlay hint -->
+                <div class="absolute inset-2.5 rounded-xl flex items-end justify-between p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none bg-gradient-to-t from-black/60 via-transparent to-transparent">
+                    <span class="text-[11px] font-mono tracking-wider bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-white/90 border border-white/10">
+                        Click anywhere to switch ⇄
+                    </span>
+                    <span class="text-[11px] font-mono tracking-wider bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-white/90 border border-white/10">
+                        80×80 Pixel Grid
+                    </span>
+                </div>
+            </div>
+
+            <!-- Current Theme Information Badge -->
+            <div class="mt-5 flex items-center gap-3">
+                <span id="theme-tag" class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium uppercase tracking-wider bg-neutral-800/80 border border-neutral-700 text-neutral-300">
+                    Image 1
+                </span>
+                <h2 id="theme-name" class="text-base font-medium text-neutral-100">Magenta Dusk</h2>
+                <span class="text-xs text-neutral-500 hidden sm:inline">•</span>
+                <p id="theme-desc" class="text-xs text-neutral-400 hidden sm:inline">Crimson twilight with warm sunset glow</p>
+            </div>
+        </div>
+
+        <!-- Palette Selector Bar -->
+        <div class="mt-10 w-full max-w-2xl">
+            <div class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 21a4 4 0 01-4-4 8.001 8.001 0 0113.6-5.6M16 5a2 2 0 114 0 2 2 0 01-4 0zM19 11a2 2 0 110-4 2 2 0 010 4zM16 17a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                    <span>Select Color Palette (<span id="theme-count">5</span>)</span>
+                </span>
+                <span class="text-neutral-500 text-[11px] lowercase">tap any swatch</span>
+            </div>
+
+            <div id="theme-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <!-- Theme buttons will be injected here via JS -->
+            </div>
+        </div>
+
+        <!-- Scale & Display Controls -->
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-neutral-400">
+            <div class="flex items-center gap-2 bg-neutral-900/60 border border-neutral-800/80 px-3 py-1.5 rounded-full" id="scale-controls">
+                <span>Scale:</span>
+                <!-- Scale buttons injected here -->
+            </div>
+
+            <div class="flex items-center gap-2 bg-neutral-900/60 border border-neutral-800/80 px-3 py-1.5 rounded-full">
+                <span class="text-neutral-400">Keyboard:</span>
+                <kbd class="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-[10px] font-mono text-neutral-300">Space</kbd>
+                <span>cycle next</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer info -->
+    <footer class="w-full max-w-4xl text-center py-3 text-xs text-neutral-500 border-t border-neutral-800/60 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <span>Pixel Dither Shading with 4×4 Bayer Matrix</span>
+        <span>Vanilla JS Implementation</span>
+    </footer>
+
+    <script>
+        const THEMES = [
+            {
+                id: 'magenta-dusk', name: 'Magenta Dusk', tag: 'Image 1',
+                description: 'Crimson twilight with warm sunset glow', bgPreview: '#772663',
+                colors: { shadow: '#1e0c24', deep: '#3d1645', mid: '#6a225e', cloud: '#aa3d6e', glowOuter: '#d9647e', glowInner: '#f5998a', bulbCore: '#fff1d6', accent: '#eb7b88' }
+            },
+            {
+                id: 'pastel-dream', name: 'Pastel Dream', tag: 'Image 2',
+                description: 'Soft lavender, candy pink, and warm yellow', bgPreview: '#b799fe',
+                colors: { shadow: '#281745', deep: '#5a3b7d', mid: '#9b87f5', cloud: '#d8a7f7', glowOuter: '#ffaee6', glowInner: '#ffe2a6', bulbCore: '#fffffa', accent: '#ff8fd0' }
+            },
+            {
+                id: 'toxic-olive', name: 'Toxic Olive', tag: 'Image 3',
+                description: 'Retro game boy style moss, lime, and chartreuse', bgPreview: '#6b9912',
+                colors: { shadow: '#0d1f08', deep: '#1c3d0f', mid: '#416b11', cloud: '#6f9d14', glowOuter: '#9dcb1a', glowInner: '#d9e838', bulbCore: '#fcffcf', accent: '#92c219' }
+            },
+            {
+                id: 'cerulean-noon', name: 'Cerulean Twilight', tag: 'Image 4',
+                description: 'Cool sapphire, azure skies, and cyan illumination', bgPreview: '#4182cf',
+                colors: { shadow: '#141852', deep: '#203275', mid: '#2f5ea8', cloud: '#4b8ddb', glowOuter: '#75bbf5', glowInner: '#c0e7ff', bulbCore: '#ffffff', accent: '#cf7cb4' }
+            },
+            {
+                id: 'cyber-amber', name: 'Amber Glow', tag: 'Bonus',
+                description: 'Nostalgic sodium vapor golden streetlamp', bgPreview: '#b5651d',
+                colors: { shadow: '#1a1008', deep: '#382010', mid: '#6e3c15', cloud: '#b8661e', glowOuter: '#e08f36', glowInner: '#f7c263', bulbCore: '#fffde6', accent: '#d97b29' }
+            }
+        ];
+
+        // State Variables
+        let currentThemeIndex = 0;
+        let isFlickering = true;
+        let pixelScale = 6;
+        let tick = 0;
+        let animFrameId = null;
+
+        // DOM Elements
+        const canvas = document.getElementById('pixel-canvas');
+        const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const themeGrid = document.getElementById('theme-grid');
+        const headerSwatch = document.getElementById('header-swatch');
+        const ambientGlow = document.getElementById('ambient-glow');
+        const themeTag = document.getElementById('theme-tag');
+        const themeName = document.getElementById('theme-name');
+        const themeDesc = document.getElementById('theme-desc');
+        const flickerBtn = document.getElementById('flicker-toggle');
+        const flickerDot = document.getElementById('flicker-dot');
+        const flickerText = document.getElementById('flicker-text');
+        const scaleControls = document.getElementById('scale-controls');
+        
+        const width = 80;
+        const height = 80;
+        canvas.width = width;
+        canvas.height = height;
+
+        const bayer4x4 = [
+            [ 0,  8,  2, 10], [12,  4, 14,  6], [ 3, 11,  1,  9], [15,  7, 13,  5]
+        ];
+
+        function hexToRgb(hex) {
+            const c = parseInt(hex.replace('#', ''), 16);
+            return [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+        }
+
+        function updateUI() {
+            const activeTheme = THEMES[currentThemeIndex];
+            
+            // Update Text & Colors
+            headerSwatch.style.backgroundColor = activeTheme.bgPreview;
+            ambientGlow.style.backgroundColor = activeTheme.bgPreview;
+            themeTag.textContent = activeTheme.tag;
+            themeName.textContent = activeTheme.name;
+            themeDesc.textContent = activeTheme.description;
+
+            // Update Theme Buttons
+            document.querySelectorAll('.theme-button').forEach((btn, idx) => {
+                const indicator = btn.querySelector('.active-indicator');
+                if (idx === currentThemeIndex) {
+                    btn.classList.add('active');
+                    btn.classList.remove('bg-neutral-900/50', 'border-neutral-800/80');
+                    if(indicator) indicator.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.add('bg-neutral-900/50', 'border-neutral-800/80');
+                    if(indicator) indicator.classList.add('hidden');
+                }
+            });
+
+            // Update Canvas Size visually
+            canvas.style.width = `${width * pixelScale}px`;
+            canvas.style.height = `${height * pixelScale}px`;
+
+            // Update Scale Buttons
+            document.querySelectorAll('.scale-btn').forEach(btn => {
+                const scaleVal = parseInt(btn.dataset.scale);
+                if (scaleVal === pixelScale) {
+                    btn.classList.add('bg-neutral-700', 'text-white', 'font-bold');
+                    btn.classList.remove('text-neutral-400');
+                } else {
+                    btn.classList.remove('bg-neutral-700', 'text-white', 'font-bold');
+                    btn.classList.add('text-neutral-400');
+                }
+            });
+        }
+
+        function buildThemeGrid() {
+            themeGrid.innerHTML = '';
+            THEMES.forEach((theme, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'theme-button relative flex flex-col p-2.5 rounded-xl border text-left cursor-pointer bg-neutral-900/50 border-neutral-800/80';
+                btn.onclick = () => {
+                    currentThemeIndex = idx;
+                    updateUI();
+                };
+
+                const colorsHtml = `
+                    <div class="flex h-4 w-full rounded-md overflow-hidden mb-2 border border-black/30 shadow-inner">
+                        <div class="flex-1" style="background-color: ${theme.colors.shadow}"></div>
+                        <div class="flex-1" style="background-color: ${theme.colors.deep}"></div>
+                        <div class="flex-1" style="background-color: ${theme.colors.mid}"></div>
+                        <div class="flex-1" style="background-color: ${theme.colors.cloud}"></div>
+                        <div class="flex-1" style="background-color: ${theme.colors.glowOuter}"></div>
+                        <div class="flex-1" style="background-color: ${theme.colors.bulbCore}"></div>
+                    </div>
+                `;
+
+                btn.innerHTML = `
+                    ${colorsHtml}
+                    <div class="flex items-center justify-between w-full">
+                        <span class="text-xs font-medium text-neutral-200 truncate pr-2">${theme.name}</span>
+                        <span class="active-indicator hidden w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                    </div>
+                    <span class="text-[10px] text-neutral-500 font-mono mt-0.5">${theme.tag}</span>
+                `;
+                themeGrid.appendChild(btn);
+            });
+        }
+
+        function buildScaleControls() {
+            [4, 5, 6, 7].forEach(s => {
+                const btn = document.createElement('button');
+                btn.className = 'scale-btn px-2 py-0.5 rounded text-xs font-mono transition-colors cursor-pointer text-neutral-400 hover:text-neutral-200';
+                btn.textContent = `${s}x`;
+                btn.dataset.scale = s;
+                btn.onclick = () => {
+                    pixelScale = s;
+                    updateUI();
+                };
+                scaleControls.appendChild(btn);
+            });
+        }
+
+        function renderLoop() {
+            tick++;
+            const t = tick;
+            const flicker = isFlickering ? Math.sin(t * 0.15) * 0.5 + Math.sin(t * 0.35) * 0.3 : 0;
+            const activeTheme = THEMES[currentThemeIndex];
+
+            const imgData = ctx.createImageData(width, height);
+            const data = imgData.data;
+
+            const cShadow = hexToRgb(activeTheme.colors.shadow);
+            const cDeep = hexToRgb(activeTheme.colors.deep);
+            const cMid = hexToRgb(activeTheme.colors.mid);
+            const cCloud = hexToRgb(activeTheme.colors.cloud);
+            const cGlowOut = hexToRgb(activeTheme.colors.glowOuter);
+            const cGlowIn = hexToRgb(activeTheme.colors.glowInner);
+            const cCore = hexToRgb(activeTheme.colors.bulbCore);
+            const cAccent = hexToRgb(activeTheme.colors.accent);
+
+            const lampX = 46;
+            const lampY = 44;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const bayer = (bayer4x4[y % 4][x % 4] / 16);
+
+                    // 1. Sky Gradient
+                    let normalizedSkyY = y / height;
+                    let col = cMid;
+                    if (normalizedSkyY < 0.35 + bayer * 0.25) {
+                        col = cCloud;
+                    } else if (normalizedSkyY < 0.7 + bayer * 0.2) {
+                        col = cMid;
+                    } else {
+                        col = cDeep;
+                    }
+
+                    // 2. Cloud Formations
+                    const cloudDist1 = Math.sqrt((x - 60) ** 2 + (y - 18) ** 2);
+                    const cloudDist2 = Math.sqrt((x - 25) ** 2 + (y - 12) ** 2);
+                    const cloudDist3 = Math.sqrt((x - 70) ** 2 + (y - 35) ** 2);
+
+                    if (cloudDist1 < 28 + bayer * 7 || cloudDist2 < 32 + bayer * 9 || cloudDist3 < 24 + bayer * 6) {
+                        if (y < 48) {
+                            col = cCloud;
+                            if (y < 16 + bayer * 5 && x > 20) {
+                                col = cGlowOut;
+                            }
+                        }
+                    }
+
+                    // 3. Radial Glow Halo
+                    const dx = x - lampX;
+                    const dy = (y - lampY) * 1.08;
+                    const dist = Math.sqrt(dx * dx + dy * dy) - flicker * 0.8;
+
+                    if (dist < 26) {
+                        const glowFactor = dist / 26;
+                        if (glowFactor < 0.18) {
+                            col = cCore;
+                        } else if (glowFactor < 0.42 + (bayer - 0.5) * 0.22) {
+                            col = cGlowIn;
+                        } else if (glowFactor < 0.72 + (bayer - 0.5) * 0.3) {
+                            col = cGlowOut;
+                        } else if (glowFactor < 0.95 + (bayer - 0.5) * 0.25) {
+                            col = cCloud;
+                        }
+                    }
+
+                    // 4. Distant Skyline
+                    const horizonY1 = 68 + Math.sin(x * 0.12) * 2.5 + Math.cos(x * 0.05) * 3;
+                    const horizonY2 = 73 + Math.sin(x * 0.2 + 2) * 2;
+
+                    if (y > horizonY1 + (bayer - 0.5) * 3) col = cDeep;
+                    if (y > horizonY2) col = cShadow;
+
+                    // 5. Street Lamp Silhouette
+                    let isLamp = false;
+                    let isBulbCenter = false;
+                    let isBulbAccent = false;
+
+                    if (x >= 29 && x <= 32 && y >= 25 && y <= 80) isLamp = true; // Post
+                    if (x === 30 || x === 31) { // Finial
+                        if (y >= 23 && y <= 24) isLamp = true;
+                        if (y === 22 && x === 30) isLamp = true;
+                    }
+                    if (x >= 32 && x <= 35 && (y === 34 || y === 35 || y === 44 || y === 45)) isLamp = true; // Brackets
+                    
+                    const archDx = x - 39;
+                    const archDy = y - 35;
+                    const archR = Math.sqrt(archDx * archDx + archDy * archDy);
+                    if (archR >= 8.5 && archR <= 10.8 && y <= 35 && x >= 30 && x <= 47) isLamp = true; // Arch
+                    if (x >= 45 && x <= 47 && y >= 32 && y <= 38) isLamp = true;
+
+                    const scrollDx = x - 40;
+                    const scrollDy = y - 33;
+                    const scrollR = Math.sqrt(scrollDx * scrollDx + scrollDy * scrollDy);
+                    if (scrollR >= 3.0 && scrollR <= 4.6 && y <= 36 && x >= 35 && x <= 44) isLamp = true; // Scrollwork
+                    if ((x === 37 && y === 35) || (x === 43 && y === 32) || (x === 41 && y === 30)) isLamp = true;
+
+                    if (y === 38 && x >= 44 && x <= 48) isLamp = true; // Hood
+                    if (y === 39 && x >= 43 && x <= 49) isLamp = true;
+                    if (y === 40 && x >= 44 && x <= 48) isLamp = true;
+                    if (y === 41 && x >= 42 && x <= 50) isLamp = true;
+                    if (y === 42 && x >= 41 && x <= 51) isLamp = true;
+                    if (y === 43 && x >= 40 && x <= 52) isLamp = true;
+                    if (y === 44 && x >= 41 && x <= 51) isLamp = true;
+
+                    if (y >= 45 && y <= 49) { // Glass frame & bulb
+                        const widthAtY = 5 - (y - 45) * 0.9;
+                        if (Math.abs(x - lampX) <= widthAtY + 1) {
+                            if (Math.abs(x - lampX) >= widthAtY) {
+                                isLamp = true;
+                            } else {
+                                if (y === 46 || y === 47) {
+                                    isBulbAccent = true;
+                                    if (Math.abs(x - lampX) <= 1) isBulbCenter = true;
+                                } else if (y === 48 && Math.abs(x - lampX) <= 1) {
+                                    isBulbAccent = true;
+                                } else {
+                                    isBulbCenter = true;
+                                }
+                            }
+                        }
+                    }
+                    if (y === 50 && (x === lampX - 1 || x === lampX)) isLamp = true; // Spike
+                    if (y === 51 && x === lampX - 1) isLamp = true;
+
+                    if (isLamp) {
+                        col = cShadow;
+                    } else if (isBulbCenter) {
+                        col = cCore;
+                    } else if (isBulbAccent) {
+                        col = cAccent;
+                    }
+
+                    data[idx] = col[0];
+                    data[idx + 1] = col[1];
+                    data[idx + 2] = col[2];
+                    data[idx + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            animFrameId = requestAnimationFrame(renderLoop);
+        }
+
+        canvasWrapper.addEventListener('click', () => {
+            currentThemeIndex = (currentThemeIndex + 1) % THEMES.length;
+            updateUI();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                currentThemeIndex = (currentThemeIndex + 1) % THEMES.length;
+                updateUI();
+            }
+        });
+
+        flickerBtn.addEventListener('click', () => {
+            isFlickering = !isFlickering;
+            if (isFlickering) {
+                flickerBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30';
+                flickerDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+                flickerText.textContent = 'Glow Pulse: ON';
+            } else {
+                flickerBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-neutral-800 text-neutral-400 border border-neutral-700 hover:text-neutral-200';
+                flickerDot.className = 'w-2 h-2 rounded-full bg-neutral-500';
+                flickerText.textContent = 'Glow Pulse: OFF';
+            }
+        });
+
+        document.getElementById('download-btn').addEventListener('click', () => {
+            const exportCanvas = document.createElement('canvas');
+            const scale = 12; // 960x960 crisp export
+            exportCanvas.width = canvas.width * scale;
+            exportCanvas.height = canvas.height * scale;
+            const expCtx = exportCanvas.getContext('2d');
+            expCtx.imageSmoothingEnabled = false;
+            expCtx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+            const link = document.createElement('a');
+            link.download = `pixel-lamp-${THEMES[currentThemeIndex].id}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // Initialize
+        buildThemeGrid();
+        buildScaleControls();
+        updateUI();
+        renderLoop();
+
+    </script>
+</body>
+</html>

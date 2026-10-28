@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visualizations</title>
+<style>
+  @font-face{font-family:"Alpha Lyrae";src:url("https://heycristobal.com/vault/assets/fonts/AlphaLyrae-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
+  :root{--bg:#1E1826; --panel:#2A2233; --panel2:#241C2E; --line:#3A2F47; --ink:#EDE7F2; --muted:#9B8FA8; --faint:#6E6182; --amber:#E8B34B}
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:"Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:48px 20px 64px}
+  ::selection{background:var(--amber); color:#1E1826}
+  .wrap{max-width:1020px; margin:0 auto}
+  h1{font-family:"Alpha Lyrae","Space Mono",monospace; font-weight:500; font-size:42px; letter-spacing:.04em; margin:0 0 6px}
+  h1 .dot{color:var(--amber)}
+  .sub{color:var(--muted); margin:0 0 8px; font-size:15px}
+  .stats{color:var(--faint); font-size:13px; margin:0 0 28px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 16px 13px; display:flex; flex-direction:column; gap:8px}
+  .card h3{font-family:"Alpha Lyrae","Space Mono",monospace; font-weight:500; font-size:19px; margin:0; letter-spacing:.03em}
+  .card p{color:var(--muted); font-size:13px; line-height:1.5; margin:0; flex:1}
+  .foot{display:flex; gap:8px; margin-top:4px}
+  .foot a{font-size:12.5px; text-decoration:none; border:1px solid var(--line); border-radius:8px; padding:5px 12px; background:var(--panel2)}
+  .view{color:var(--amber)} .code{color:var(--muted)}
+  .foot a:hover{color:var(--ink); border-color:var(--amber)}
+  footer{color:var(--faint); font-size:12.5px; line-height:1.7; margin-top:34px; border-top:1px solid var(--line); padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Visualizations<span class="dot">.</span></h1>
+  <p class="sub">Three visual generators and scenes, one repo. Each lives in its own folder, exactly as it was published.</p>
+  <p class="stats">3 projects · 1 repo · 0 build steps</p>
+  <div class="grid">
+      <article class="card"><h3>Isocube Generator</h3><p>Generative isometric cube wallpapers.</p><div class="foot"><a class="view" href="isometric-cube-wallpaper-generator/">Open →</a><a class="code" href="https://github.com/dalecri/visualizations/tree/main/isometric-cube-wallpaper-generator">Code</a></div></article>
+      <article class="card"><h3>Pixel Twilight Lantern</h3><p>A pixel twilight lantern scene.</p><div class="foot"><a class="view" href="pixel-night-lamp/">Open →</a><a class="code" href="https://github.com/dalecri/visualizations/tree/main/pixel-night-lamp">Code</a></div></article>
+      <article class="card"><h3>3D Aesthetic Showcase</h3><p>A showcase of 3D aesthetic renders.</p><div class="foot"><a class="view" href="3d-aesthetic-renders/">Open →</a><a class="code" href="https://github.com/dalecri/visualizations/tree/main/3d-aesthetic-renders">Code</a></div></article>
+  </div>
+  <footer>Consolidated 2026-10-28 from three single-project repos.<br>
+  Add a project: create a folder with the project in it (its entry point as <i>index.html</i>), then add its card above and a row to the README table.</footer>
+</div>
+</body>
+</html>

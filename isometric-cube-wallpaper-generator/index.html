@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Isocube Generator</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            background: #000;
+            touch-action: none;
+        }
+        @keyframes fadeOut {
+            0%, 45% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        .animate-fade-out { animation: fadeOut 3s forwards; }
+        @keyframes toastFade {
+            0% { opacity: 0; transform: translate(-50%, 6px); }
+            12%, 78% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, 6px); }
+        }
+        .animate-toast { animation: toastFade 2.1s ease forwards; }
+        .glass {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .btn-press:active { transform: scale(0.92); }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.18);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        select {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+
+        const clamp = (v, mi, ma) => Math.max(mi, Math.min(ma, v));
+
+        function hslToHex(h, s, l) {
+            s /= 100; l /= 100;
+            const a = s * Math.min(l, 1 - l);
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, "0");
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
+        // strategy index -> generator name
+        const STRATEGIES = ["analogous", "triadic", "complementary", "rainbow", "vivid", "cyberpunk", "midnight", "toxic", "noir"];
+        const STRATEGY_LABELS = {
+            analogous: "Analogous", triadic: "Triadic", complementary: "Complementary",
+            rainbow: "Rainbow", vivid: "Vivid", cyberpunk: "Cyberpunk",
+            midnight: "Midnight", toxic: "Toxic", noir: "Synth Noir"
+        };
+
+        function randomPalette(opts = {}) {
+            const { count = 8, strategyIdx = null, vibrancy = 1, brightness = 1 } = opts;
+            const baseHue = Math.random() * 360;
+            const strat = strategyIdx === null ? Math.floor(Math.random() * STRATEGIES.length) : strategyIdx;
+            const colors = [];
+
+            for (let i = 0; i < count; i++) {
+                let h, s, l;
+                switch (strat) {
+                    case 0: // analogous
+                        h = (baseHue + i * 25 + Math.random() * 15) % 360;
+                        s = 55 + Math.random() * 40; l = 40 + Math.random() * 35;
+                        break;
+                    case 1: // triadic
+                        h = (baseHue + (i % 3) * 120 + Math.random() * 30) % 360;
+                        s = 55 + Math.random() * 40; l = 40 + Math.random() * 35;
+                        break;
+                    case 2: // complementary
+                        h = (baseHue + (i % 2) * 180 + Math.random() * 40 - 20) % 360;
+                        s = 55 + Math.random() * 40; l = 40 + Math.random() * 35;
+                        break;
+                    case 3: // rainbow
+                        h = (baseHue + i * 51 + Math.random() * 20) % 360;
+                        s = 60 + Math.random() * 35; l = 40 + Math.random() * 30;
+                        break;
+                    case 4: // full random vivid
+                        h = Math.random() * 360;
+                        s = 55 + Math.random() * 40; l = 40 + Math.random() * 35;
+                        break;
+                    case 5: // cyberpunk neon
+                        h = [280, 320, 180, 200, 60, 140, 0][i % 7] + Math.random() * 20;
+                        s = 80 + Math.random() * 20;
+                        l = i < 3 ? 12 + Math.random() * 12 : 50 + Math.random() * 25;
+                        break;
+                    case 6: // midnight neon
+                        h = (240 + i * 30 + Math.random() * 20) % 360;
+                        s = 70 + Math.random() * 30;
+                        l = i % 3 === 0 ? 10 + Math.random() * 10 : 45 + Math.random() * 30;
+                        break;
+                    case 7: // toxic neon
+                        h = [120, 300, 180, 60, 330, 200, 0][i % 7] + Math.random() * 15;
+                        s = 85 + Math.random() * 15;
+                        l = i < 2 ? 6 + Math.random() * 8 : 40 + Math.random() * 30;
+                        break;
+                    default: // synth noir
+                        h = [350, 30, 270, 200, 170, 310, 45][i % 7] + Math.random() * 20;
+                        s = 75 + Math.random() * 25;
+                        l = i < 2 ? 8 + Math.random() * 10 : 45 + Math.random() * 25;
+                        break;
+                }
+                s = clamp(s * vibrancy, 4, 100);
+                l = clamp(l * brightness, 3, 97);
+                colors.push(hslToHex(h % 360, s, l));
+            }
+            return colors;
+        }
+
+        // uniform pick
+        function pick(colors) {
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // build a cumulative weight table so some colors show up far more than others
+        function buildWeights(n, biasPct) {
+            if (!biasPct || biasPct <= 0) return null;
+            const skew = 1 + (biasPct / 100) * 6; // 1..7
+            const raw = Array.from({ length: n }, () => Math.pow(Math.random(), skew));
+            const sum = raw.reduce((a, b) => a + b, 0) || 1;
+            let acc = 0;
+            return raw.map(v => (acc += v / sum));
+        }
+
+        function pickWeighted(colors, cumWeights) {
+            if (!cumWeights) return pick(colors);
+            const r = Math.random();
+            for (let i = 0; i < cumWeights.length; i++) {
+                if (r <= cumWeights[i]) return colors[i];
+            }
+            return colors[colors.length - 1];
+        }
+
+        function shade(hex, factor) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            const c = v => Math.max(0, Math.min(255, Math.round(v * factor)));
+            return `rgb(${c(r)},${c(g)},${c(b)})`;
+        }
+
+        function drawCubes(ctx, w, h, colors, edgeLen, opts = {}) {
+            const {
+                shapeRatio = 1,
+                leftFactor = 0.9,
+                rightFactor = 0.85,
+                outline = false,
+                weights = null,
+            } = opts;
+
+            ctx.fillStyle = shade(colors[0], 0.3);
+            ctx.fillRect(0, 0, w, h);
+
+            const sqrt3 = Math.sqrt(3);
+            const ev = edgeLen * shapeRatio; // vertical dimension (the "shape" control)
+            const hx = edgeLen * sqrt3 / 2;  // horizontal reach stays tied to the base size
+            const colW = hx * 2;
+            const rowH = ev * 1.5;
+            const p = 0.5;
+
+            const cols = Math.ceil(w / colW) + 3;
+            const rows = Math.ceil(h / rowH) + 3;
+
+            const outlineWidth = Math.max(0.5, edgeLen * 0.012);
+            const outlineAlpha = 0.35;
+
+            for (let row = -2; row < rows; row++) {
+                for (let col = -2; col < cols; col++) {
+                    const offsetX = (row % 2 === 0) ? 0 : hx;
+                    const cx = col * colW + offsetX;
+                    const cy = row * rowH;
+
+                    const topColor = pickWeighted(colors, weights);
+                    const leftColor = pickWeighted(colors, weights);
+                    const rightColor = pickWeighted(colors, weights);
+
+                    // top face
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy - ev - p);
+                    ctx.lineTo(cx + hx + p, cy - ev / 2);
+                    ctx.lineTo(cx, cy + p);
+                    ctx.lineTo(cx - hx - p, cy - ev / 2);
+                    ctx.closePath();
+                    ctx.fillStyle = topColor;
+                    ctx.fill();
+                    if (outline) { ctx.strokeStyle = `rgba(0,0,0,${outlineAlpha})`; ctx.lineWidth = outlineWidth; ctx.stroke(); }
+
+                    // left face
+                    ctx.beginPath();
+                    ctx.moveTo(cx - hx - p, cy - ev / 2 - p);
+                    ctx.lineTo(cx + p, cy);
+                    ctx.lineTo(cx + p, cy + ev + p);
+                    ctx.lineTo(cx - hx - p, cy + ev / 2 + p);
+                    ctx.closePath();
+                    ctx.fillStyle = shade(leftColor, leftFactor);
+                    ctx.fill();
+                    if (outline) { ctx.strokeStyle = `rgba(0,0,0,${outlineAlpha})`; ctx.lineWidth = outlineWidth; ctx.stroke(); }
+
+                    // right face
+                    ctx.beginPath();
+                    ctx.moveTo(cx + hx + p, cy - ev / 2 - p);
+                    ctx.lineTo(cx - p, cy);
+                    ctx.lineTo(cx - p, cy + ev + p);
+                    ctx.lineTo(cx + hx + p, cy + ev / 2 + p);
+                    ctx.closePath();
+                    ctx.fillStyle = shade(rightColor, rightFactor);
+                    ctx.fill();
+                    if (outline) { ctx.strokeStyle = `rgba(0,0,0,${outlineAlpha})`; ctx.lineWidth = outlineWidth; ctx.stroke(); }
+                }
+            }
+        }
+
+        const BASE_W = 3840; // reference width used to normalize cube density across any canvas size
+
+        const DEFAULTS = {
+            sizeBase: 100,        // 40-220
+            sizeRandomness: 40,   // 0-100 (px jitter applied on "New")
+            shapeRatio: 1,        // 0.5-1.8 (flat diamonds <-> tall pillars)
+            colorCount: 8,        // 3-14
+            paletteStrategy: "auto",
+            vibrancy: 1,          // 0.5-1.4 saturation multiplier
+            brightness: 1,        // 0.6-1.3 lightness multiplier
+            colorBias: 0,         // 0-100, 0 = even odds, 100 = a couple colors dominate
+            contrast: 20,         // 0-100, face shading contrast
+            outline: false,
+        };
+
+        function contrastFactors(contrast) {
+            return {
+                leftFactor: 1 - (contrast / 100) * 0.5,
+                rightFactor: 1 - (contrast / 100) * 0.75,
+            };
+        }
+
+        function RefreshIcon(props) {
+            return (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                    <path d="M21 12a9 9 0 1 1-3.02-6.71" />
+                    <path d="M21 3v6h-6" />
+                </svg>
+            );
+        }
+        function DownloadIcon(props) {
+            return (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                    <path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M5 21h14" />
+                </svg>
+            );
+        }
+        function GearIcon(props) {
+            return (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+            );
+        }
+        function CloseIcon(props) {
+            return (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                    <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+                </svg>
+            );
+        }
+
+        function SliderRow({ label, value, min, max, step, onChange, display }) {
+            return (
+                <div className="mb-4">
+                    <div className="flex justify-between items-baseline mb-1.5">
+                        <span className="text-white/70 text-[11px] font-mono tracking-wide">{label}</span>
+                        <span className="text-white/40 text-[11px] font-mono">{display}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min={min} max={max} step={step} value={value}
+                        onChange={e => onChange(parseFloat(e.target.value))}
+                        onClick={e => e.stopPropagation()}
+                    />
+                </div>
+            );
+        }
+
+        function App() {
+            const canvasRef = useRef(null);
+            const stateRef = useRef((() => {
+                const strategyIdx = null;
+                const colors = randomPalette({ count: DEFAULTS.colorCount, strategyIdx, vibrancy: DEFAULTS.vibrancy, brightness: DEFAULTS.brightness });
+                const weights = buildWeights(colors.length, DEFAULTS.colorBias);
+                const { leftFactor, rightFactor } = contrastFactors(DEFAULTS.contrast);
+                return {
+                    edgeLen: DEFAULTS.sizeBase,
+                    shapeRatio: DEFAULTS.shapeRatio,
+                    colors, weights, leftFactor, rightFactor,
+                    outline: DEFAULTS.outline,
+                };
+            })());
+
+            const [, setTick] = useState(0);
+            const [settings, setSettings] = useState(DEFAULTS);
+            const [saving, setSaving] = useState(false);
+            const [showHint, setShowHint] = useState(true);
+            const [showSettings, setShowSettings] = useState(false);
+            const [copiedIndex, setCopiedIndex] = useState(null);
+            const [toast, setToast] = useState(null);
+            const isCoarsePointer = useRef(typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
+            const render = useCallback(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const dpr = window.devicePixelRatio || 1;
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                canvas.style.width = w + "px";
+                canvas.style.height = h + "px";
+                const ctx = canvas.getContext("2d");
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(dpr, dpr);
+                const scale = w / BASE_W;
+                const s = stateRef.current;
+                drawCubes(ctx, w, h, s.colors, s.edgeLen * (scale || 1), {
+                    shapeRatio: s.shapeRatio, leftFactor: s.leftFactor, rightFactor: s.rightFactor,
+                    outline: s.outline, weights: s.weights,
+                });
+            }, []);
+
+            const flashToast = useCallback((msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(null), 2000);
+            }, []);
+
+            // full regenerate: new size (within jitter range) + new palette, respecting current settings
+            const regenerateAll = useCallback(() => {
+                setSettings(cur => {
+                    const jitter = (Math.random() - 0.5) * 2 * cur.sizeRandomness;
+                    const edgeLen = clamp(cur.sizeBase + jitter, 30, 260);
+                    const strategyIdx = cur.paletteStrategy === "auto" ? null : STRATEGIES.indexOf(cur.paletteStrategy);
+                    const colors = randomPalette({ count: cur.colorCount, strategyIdx, vibrancy: cur.vibrancy, brightness: cur.brightness });
+                    const weights = buildWeights(colors.length, cur.colorBias);
+                    stateRef.current.edgeLen = edgeLen;
+                    stateRef.current.colors = colors;
+                    stateRef.current.weights = weights;
+                    return cur;
+                });
+                setTick(t => t + 1);
+                render();
+            }, [render]);
+
+            // regenerate colors only (used when color-related sliders change), keep current size/shape
+            const regenerateColorsWith = useCallback((cfg) => {
+                const strategyIdx = cfg.paletteStrategy === "auto" ? null : STRATEGIES.indexOf(cfg.paletteStrategy);
+                const colors = randomPalette({ count: cfg.colorCount, strategyIdx, vibrancy: cfg.vibrancy, brightness: cfg.brightness });
+                const weights = buildWeights(colors.length, cfg.colorBias);
+                stateRef.current.colors = colors;
+                stateRef.current.weights = weights;
+                setTick(t => t + 1);
+                render();
+            }, [render]);
+
+            const updateSetting = (key, value, opts = {}) => {
+                setSettings(prev => {
+                    const next = { ...prev, [key]: value };
+                    if (opts.immediateGeometry) {
+                        if (key === "shapeRatio") stateRef.current.shapeRatio = value;
+                        if (key === "sizeBase") stateRef.current.edgeLen = value;
+                        if (key === "contrast") {
+                            const f = contrastFactors(value);
+                            stateRef.current.leftFactor = f.leftFactor;
+                            stateRef.current.rightFactor = f.rightFactor;
+                        }
+                        if (key === "outline") stateRef.current.outline = value;
+                        render();
+                    }
+                    if (opts.regenColors) {
+                        regenerateColorsWith(next);
+                    }
+                    return next;
+                });
+            };
+
+            const saveImage = useCallback(async () => {
+                if (saving) return;
+                setSaving(true);
+                try {
+                    const s = stateRef.current;
+                    const aspect = window.innerWidth / window.innerHeight;
+                    let saveH = 4096;
+                    let saveW = Math.round(saveH * aspect);
+                    if (saveW > 4096) { saveW = 4096; saveH = Math.round(saveW / aspect); }
+                    const c = document.createElement("canvas");
+                    c.width = saveW; c.height = saveH;
+                    const scaledEdge = s.edgeLen * (saveW / BASE_W);
+                    drawCubes(c.getContext("2d"), saveW, saveH, s.colors, scaledEdge, {
+                        shapeRatio: s.shapeRatio, leftFactor: s.leftFactor, rightFactor: s.rightFactor,
+                        outline: s.outline, weights: s.weights,
+                    });
+
+                    const blob = await new Promise(resolve => c.toBlob(resolve, "image/png"));
+                    const filename = `isocube-${Date.now()}.png`;
+                    let handled = false;
+
+                    if (navigator.canShare && typeof File !== "undefined") {
+                        try {
+                            const file = new File([blob], filename, { type: "image/png" });
+                            if (navigator.canShare({ files: [file] })) {
+                                await navigator.share({ files: [file], title: "Isocube" });
+                                handled = true;
+                                flashToast("Saved");
+                            }
+                        } catch (err) {
+                            if (err && err.name === "AbortError") handled = true;
+                        }
+                    }
+
+                    if (!handled) {
+                        const url = URL.createObjectURL(blob);
+                        if (!isCoarsePointer.current) {
+                            const a = document.createElement("a");
+                            a.href = url; a.download = filename; a.click();
+                            flashToast("Downloaded");
+                        } else {
+                            window.open(url, "_blank");
+                            flashToast("Long-press image to save");
+                        }
+                        setTimeout(() => URL.revokeObjectURL(url), 15000);
+                    }
+                } catch (e) {
+                    flashToast("Couldn't save");
+                } finally {
+                    setSaving(false);
+                }
+            }, [saving, flashToast]);
+
+            useEffect(() => {
+                render();
+                const onResize = () => render();
+                window.addEventListener("resize", onResize);
+                window.addEventListener("orientationchange", onResize);
+                return () => {
+                    window.removeEventListener("resize", onResize);
+                    window.removeEventListener("orientationchange", onResize);
+                };
+            }, [render]);
+
+            useEffect(() => {
+                const onKey = (e) => {
+                    if (e.code === "Space") { e.preventDefault(); regenerateAll(); setShowHint(false); }
+                    if (e.code === "KeyS") { e.preventDefault(); saveImage(); }
+                };
+                window.addEventListener("keydown", onKey);
+                return () => window.removeEventListener("keydown", onKey);
+            }, [regenerateAll, saveImage]);
+
+            useEffect(() => {
+                const t = setTimeout(() => setShowHint(false), 3000);
+                return () => clearTimeout(t);
+            }, []);
+
+            const copySwatch = (hex, i, e) => {
+                e.stopPropagation();
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(hex).catch(() => {});
+                }
+                setCopiedIndex(i);
+                setTimeout(() => setCopiedIndex(c => (c === i ? null : c)), 1000);
+            };
+
+            const resetSettings = (e) => {
+                e.stopPropagation();
+                setSettings(DEFAULTS);
+                const { leftFactor, rightFactor } = contrastFactors(DEFAULTS.contrast);
+                stateRef.current.shapeRatio = DEFAULTS.shapeRatio;
+                stateRef.current.edgeLen = DEFAULTS.sizeBase;
+                stateRef.current.leftFactor = leftFactor;
+                stateRef.current.rightFactor = rightFactor;
+                stateRef.current.outline = DEFAULTS.outline;
+                regenerateColorsWith(DEFAULTS);
+            };
+
+            const { colors } = stateRef.current;
+
+            const handleBackgroundClick = () => {
+                if (showSettings) { setShowSettings(false); return; }
+                regenerateAll();
+                setShowHint(false);
+            };
+
+            return (
+                <div className="fixed inset-0 overflow-hidden cursor-pointer select-none" onClick={handleBackgroundClick}>
+                    <canvas ref={canvasRef} className="absolute inset-0" />
+
+                    {toast && (
+                        <div className="absolute left-1/2 top-8 -translate-x-1/2 glass px-4 py-2 rounded-full text-white text-xs font-mono animate-toast pointer-events-none whitespace-nowrap">
+                            {toast}
+                        </div>
+                    )}
+
+                    {/* settings sheet */}
+                    <div
+                        className="absolute left-0 right-0 bottom-0 pointer-events-none flex justify-center"
+                        style={{ zIndex: 20 }}
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className="glass w-full max-w-md rounded-t-3xl px-5 pt-4 overflow-y-auto pointer-events-auto transition-transform duration-300 ease-out no-scrollbar"
+                            style={{
+                                transform: showSettings ? "translateY(0)" : "translateY(110%)",
+                                maxHeight: "78vh",
+                                paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
+                            }}
+                        >
+                            <div className="flex items-center justify-between mb-3 sticky top-0">
+                                <span className="text-white text-sm font-mono tracking-wide">Customize</span>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={resetSettings} className="text-white/50 text-[11px] font-mono underline underline-offset-2">Reset</button>
+                                    <button onClick={(e) => { e.stopPropagation(); setShowSettings(false); }} className="text-white/70 btn-press p-1">
+                                        <CloseIcon />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="text-white/40 text-[10px] font-mono tracking-widest mb-2 uppercase">Size &amp; Shape</div>
+                            <SliderRow label="Size" value={settings.sizeBase} min={40} max={220} step={1}
+                                display={Math.round(settings.sizeBase)}
+                                onChange={v => updateSetting("sizeBase", v, { immediateGeometry: true })} />
+                            <SliderRow label="Randomness" value={settings.sizeRandomness} min={0} max={100} step={1}
+                                display={Math.round(settings.sizeRandomness)}
+                                onChange={v => updateSetting("sizeRandomness", v)} />
+                            <SliderRow label="Shape" value={settings.shapeRatio} min={0.5} max={1.8} step={0.01}
+                                display={settings.shapeRatio.toFixed(2)}
+                                onChange={v => updateSetting("shapeRatio", v, { immediateGeometry: true })} />
+
+                            <div className="text-white/40 text-[10px] font-mono tracking-widest mb-2 mt-1 uppercase">Color</div>
+                            <SliderRow label="Colors" value={settings.colorCount} min={3} max={14} step={1}
+                                display={settings.colorCount}
+                                onChange={v => updateSetting("colorCount", Math.round(v), { regenColors: true })} />
+
+                            <div className="mb-4">
+                                <div className="flex justify-between items-baseline mb-1.5">
+                                    <span className="text-white/70 text-[11px] font-mono tracking-wide">Palette</span>
+                                </div>
+                                <select
+                                    value={settings.paletteStrategy}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => updateSetting("paletteStrategy", e.target.value, { regenColors: true })}
+                                    className="w-full glass text-white text-xs font-mono rounded-xl px-3 py-2.5 border border-white/10"
+                                >
+                                    <option value="auto" style={{ color: "black" }}>Auto (surprise me)</option>
+                                    {STRATEGIES.map(s => (
+                                        <option key={s} value={s} style={{ color: "black" }}>{STRATEGY_LABELS[s]}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <SliderRow label="Vibrancy" value={settings.vibrancy} min={0.5} max={1.4} step={0.01}
+                                display={settings.vibrancy.toFixed(2)}
+                                onChange={v => updateSetting("vibrancy", v, { regenColors: true })} />
+                            <SliderRow label="Brightness" value={settings.brightness} min={0.6} max={1.3} step={0.01}
+                                display={settings.brightness.toFixed(2)}
+                                onChange={v => updateSetting("brightness", v, { regenColors: true })} />
+                            <SliderRow label="Color Dominance" value={settings.colorBias} min={0} max={100} step={1}
+                                display={settings.colorBias === 0 ? "Even" : Math.round(settings.colorBias)}
+                                onChange={v => updateSetting("colorBias", v, { regenColors: true })} />
+
+                            <div className="text-white/40 text-[10px] font-mono tracking-widest mb-2 mt-1 uppercase">Render</div>
+                            <SliderRow label="Face Contrast" value={settings.contrast} min={0} max={100} step={1}
+                                display={Math.round(settings.contrast)}
+                                onChange={v => updateSetting("contrast", v, { immediateGeometry: true })} />
+
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-white/70 text-[11px] font-mono tracking-wide">Outlines</span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); updateSetting("outline", !settings.outline, { immediateGeometry: true }); }}
+                                    className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${settings.outline ? "bg-white/70 justify-end" : "bg-white/15 justify-start"}`}
+                                >
+                                    <span className="w-5 h-5 rounded-full bg-black block" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        className="absolute left-0 right-0 flex flex-col gap-3 px-4 pointer-events-none"
+                        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)", zIndex: 10 }}
+                    >
+                        <div className="flex justify-center pointer-events-auto">
+                            <div className="flex gap-1.5 p-2 rounded-2xl glass overflow-x-auto max-w-full no-scrollbar">
+                                {colors.map((c, i) => (
+                                    <div key={i} className="relative flex-shrink-0">
+                                        <button
+                                            onClick={(e) => copySwatch(c, i, e)}
+                                            style={{ background: c }}
+                                            className="w-9 h-9 rounded-lg border border-white/10 btn-press transition-transform"
+                                            aria-label={`Copy color ${c}`}
+                                        />
+                                        {copiedIndex === i && (
+                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/85 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-white whitespace-nowrap pointer-events-none border border-white/10">
+                                                Copied
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center gap-2.5 pointer-events-auto">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); regenerateAll(); setShowHint(false); }}
+                                className="flex items-center gap-2 glass text-white px-5 py-3.5 rounded-full btn-press transition-transform font-mono text-xs tracking-wide"
+                                aria-label="Generate new pattern"
+                            >
+                                <RefreshIcon /> New
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); saveImage(); }}
+                                disabled={saving}
+                                className="flex items-center gap-2 glass text-white px-5 py-3.5 rounded-full btn-press transition-transform font-mono text-xs tracking-wide disabled:opacity-50"
+                                aria-label="Save image"
+                            >
+                                <DownloadIcon /> {saving ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowSettings(v => !v); }}
+                                className="flex items-center justify-center glass text-white w-[52px] h-[52px] rounded-full btn-press transition-transform"
+                                aria-label="Customize"
+                            >
+                                <GearIcon />
+                            </button>
+                        </div>
+                    </div>
+
+                    {showHint && (
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-sm text-white/60 glass px-6 py-3 rounded-full animate-fade-out pointer-events-none whitespace-nowrap">
+                            TAP ANYWHERE FOR NEW PATTERN
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
