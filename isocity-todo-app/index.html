@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IsoScapes - World Builder</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        /* Custom Scrollbar Styles */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- ICON DEFINITIONS (Inlined to avoid CDN issues) ---
+        const IconBase = ({ children, size = 24, className = "", ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className} 
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            RefreshCw: (p) => <IconBase {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>,
+            Plus: (p) => <IconBase {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
+            CheckCircle2: (p) => <IconBase {...p}><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></IconBase>,
+            Briefcase: (p) => <IconBase {...p}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></IconBase>,
+            Home: (p) => <IconBase {...p}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconBase>,
+            ShoppingBag: (p) => <IconBase {...p}><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></IconBase>,
+            Heart: (p) => <IconBase {...p}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></IconBase>,
+            Trash2: (p) => <IconBase {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>,
+            Dice5: (p) => <IconBase {...p}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M12 12h.01"/><path d="M16 16h.01"/><path d="M8 16h.01"/></IconBase>,
+            Globe2: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconBase>,
+            Lock: (p) => <IconBase {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>,
+            Unlock: (p) => <IconBase {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>,
+            ZoomIn: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></IconBase>,
+            ZoomOut: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></IconBase>,
+            QrCode: (p) => <IconBase {...p}><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></IconBase>,
+            X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
+            Copy: (p) => <IconBase {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></IconBase>,
+            Eye: (p) => <IconBase {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            EyeOff: (p) => <IconBase {...p}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7c.44 0 .87-.03 1.28-.08"/><line x1="2" x2="22" y1="2" y2="22"/></IconBase>,
+            ChevronDown: (p) => <IconBase {...p}><path d="m6 9 6 6 6-6"/></IconBase>
+        };
+
+        const { 
+            RefreshCw, Plus, CheckCircle2, Briefcase, Home, ShoppingBag, 
+            Heart, Trash2, Dice5, Globe2, Lock, Unlock, ZoomIn, ZoomOut, 
+            QrCode, X, Copy, Eye, EyeOff, ChevronDown 
+        } = Icons;
+
+        // --- CONFIGURATION & PALETTES ---
+
+        const MATERIALS = {
+            bedrock:      { c: ['#292524', '#1c1917', '#0c0a09'] }, 
+            grass:        { c: ['#bef264', '#65a30d', '#3f6212'] },
+            grass_dark:   { c: ['#4d7c0f', '#3f6212', '#1a2e05'] },
+            grass_dead:   { c: ['#a1a1aa', '#71717a', '#52525b'] },
+            sand:         { c: ['#fde047', '#eab308', '#ca8a04'] },
+            sand_red:     { c: ['#fb923c', '#ea580c', '#9a3412'] },
+            snow:         { c: ['#f8fafc', '#e2e8f0', '#cbd5e1'] },
+            dirt:         { c: ['#a16207', '#854d0e', '#713f12'] },
+            stone:        { c: ['#94a3b8', '#64748b', '#475569'] },
+            obsidian:     { c: ['#334155', '#1e293b', '#0f172a'] },
+            water:        { c: ['#38bdf8', '#0ea5e9', '#0369a1'], fluid: true },
+            water_teal:   { c: ['#2dd4bf', '#14b8a6', '#0f766e'], fluid: true },
+            water_murky:  { c: ['#3f6212', '#365314', '#1a2e05'], fluid: true },
+            lava:         { c: ['#fca5a5', '#f87171', '#dc2626'], emit: '#ef4444', fluid: true },
+            sludge:       { c: ['#a3e635', '#84cc16', '#4d7c0f'], emit: '#84cc16', fluid: true },
+            asphalt:      { c: ['#475569', '#334155', '#1e293b'] },
+            concrete:     { c: ['#d1d5db', '#9ca3af', '#6b7280'] },
+            cobblestone:  { c: ['#d6d3d1', '#a8a29e', '#78716c'] },
+            tile_white:   { c: ['#f8fafc', '#e2e8f0', '#cbd5e1'] },
+            tile_hazard:  { c: ['#facc15', '#eab308', '#ca8a04'] },
+            white_wall:   { c: ['#f1f5f9', '#e2e8f0', '#cbd5e1'] },
+            brick_red:    { c: ['#ef4444', '#b91c1c', '#7f1d1d'] },
+            brick_brown:  { c: ['#92400e', '#78350f', '#451a03'] },
+            steel:        { c: ['#94a3b8', '#64748b', '#475569'] },
+            rust:         { c: ['#d97706', '#b45309', '#78350f'] },
+            glass:        { c: ['#e0f2fe', '#bae6fd', '#7dd3fc'], glass: true },
+            glass_dark:   { c: ['#334155', '#1e293b', '#020617'], glass: true },
+            glass_gold:   { c: ['#fef08a', '#fde047', '#eab308'], glass: true },
+            timber:       { c: ['#d97706', '#b45309', '#78350f'] },
+            marble:       { c: ['#f8fafc', '#e2e8f0', '#cbd5e1'] }, 
+            gold:         { c: ['#facc15', '#eab308', '#ca8a04'], emit: '#facc15' },
+            leaves:       { c: ['#4ade80', '#22c55e', '#15803d'] },
+            leaves_pink:  { c: ['#f9a8d4', '#f472b6', '#db2777'] }, 
+            leaves_orange:{ c: ['#fb923c', '#f59e0b', '#d97706'] },
+            leaves_dead:  { c: ['#713f12', '#451a03', '#292524'] },
+            pine:         { c: ['#15803d', '#166534', '#14532d'] },
+            cactus:       { c: ['#86efac', '#4ade80', '#22c55e'] },
+            pipe:         { c: ['#94a3b8', '#64748b', '#475569'] },
+            lamp_yellow:  { c: ['#fef08a', '#fde047', '#eab308'], emit: '#fde047' },
+            neon_blue:    { c: ['#67e8f9', '#22d3ee', '#06b6d4'], emit: '#22d3ee' },
+            neon_pink:    { c: ['#f9a8d4', '#f472b6', '#e879f9'], emit: '#e879f9' },
+            neon_green:   { c: ['#86efac', '#4ade80', '#22c55e'], emit: '#4ade80' },
+            beacon_blue:   { c: ['#bfdbfe', '#60a5fa', '#3b82f6'], emit: '#3b82f6' },
+            beacon_orange: { c: ['#fed7aa', '#fb923c', '#f97316'], emit: '#f97316' },
+            beacon_green:  { c: ['#bbf7d0', '#4ade80', '#22c55e'], emit: '#22c55e' },
+            beacon_purple: { c: ['#e9d5ff', '#c084fc', '#a855f7'], emit: '#a855f7' },
+            roof_orange:  { c: ['#fb923c', '#ea580c', '#c2410c'] },
+            roof_slate:   { c: ['#64748b', '#475569', '#334155'] },
+            roof_blue:    { c: ['#60a5fa', '#3b82f6', '#2563eb'] },
+        };
+
+        const THEMES = {
+            MEDITERRANEAN: { 
+                label: 'Mediterranean Coast', type: 'CITY', floor: 'cobblestone', road: 'cobblestone', 
+                wall: ['white_wall', 'white_wall', 'brick_red'], roof: 'brick_red', decor: ['leaves', 'lamp_yellow'], 
+                water: 'water_teal', elevation: 2.0, bg: ['#60a5fa', '#cffafe'],
+                hero: { wall: 'marble', roof: 'glass_gold', detail: 'gold' }
+            },
+            UNDERGROUND: { 
+                label: 'Underground Station', type: 'CITY', floor: 'concrete', road: 'asphalt', 
+                wall: ['tile_white', 'concrete'], roof: 'steel', decor: ['pipe', 'neon_green'], 
+                water: 'sludge', elevation: 0.5, bg: ['#0f172a', '#334155'],
+                hero: { wall: 'glass_dark', roof: 'tile_hazard', detail: 'neon_green' }
+            },
+            NEO_TOKYO: { 
+                label: 'Neo-Tokyo', type: 'CITY', floor: 'asphalt', road: 'asphalt', 
+                wall: ['glass_dark', 'steel'], roof: 'steel', decor: ['neon_blue', 'neon_pink'], 
+                water: 'water', elevation: 1.0, bg: ['#1e1b4b', '#4c1d95'],
+                hero: { wall: 'glass', roof: 'neon_pink', detail: 'neon_blue' }
+            },
+            MARS_COLONY: { 
+                label: 'Mars Colony', type: 'CITY', floor: 'sand_red', road: 'sand_red', 
+                wall: ['steel', 'white_wall'], roof: 'glass', decor: ['neon_blue'], 
+                water: 'lava', elevation: 1.5, bg: ['#451a03', '#9a3412'],
+                hero: { wall: 'white_wall', roof: 'glass', detail: 'steel' }
+            },
+            MANHATTAN: { 
+                label: 'Downtown Grid', type: 'CITY', floor: 'concrete', road: 'asphalt', 
+                wall: ['glass', 'steel', 'concrete'], roof: 'concrete', decor: ['lamp_yellow'], 
+                water: 'water', elevation: 0.2, bg: ['#bae6fd', '#f1f5f9'],
+                hero: { wall: 'glass', roof: 'steel', detail: 'gold' }
+            },
+            INDUSTRIAL: { 
+                label: 'Industrial Zone', type: 'CITY', floor: 'concrete', road: 'dirt', 
+                wall: ['brick_red', 'rust'], roof: 'steel', decor: ['steel', 'pipe'], 
+                water: 'water_murky', elevation: 0.5, bg: ['#78716c', '#a8a29e'],
+                hero: { wall: 'rust', roof: 'glass_dark', detail: 'neon_blue' }
+            },
+            FAVELA: { 
+                label: 'Hillside Favela', type: 'CITY', floor: 'dirt', road: 'tile_red', 
+                wall: ['brick_brown', 'brick_red', 'concrete'], roof: 'rust', decor: ['leaves'], 
+                water: 'water', elevation: 3.5, bg: ['#38bdf8', '#f0f9ff'],
+                hero: { wall: 'white_wall', roof: 'roof_blue', detail: 'leaves' }
+            },
+            ALPINE: { 
+                label: 'Alpine Peaks', type: 'NATURE', floor: 'stone', liquid: 'water', 
+                wall: 'timber', foliage: 'pine', peak: 'snow', waterFreq: 0.2, bg: ['#0c4a6e', '#bae6fd'],
+                hero: { wall: 'stone', roof: 'timber', detail: 'glass_gold' }
+            },
+            AUTUMN: { 
+                label: 'Autumn Forest', type: 'NATURE', floor: 'dirt', liquid: 'water', 
+                wall: 'timber', foliage: 'leaves_orange', peak: 'stone', waterFreq: 0.4, bg: ['#c2410c', '#fdba74'],
+                hero: { wall: 'timber', roof: 'roof_slate', detail: 'brick_red' }
+            },
+            SAKURA: { 
+                label: 'Sakura Gardens', type: 'NATURE', floor: 'grass', liquid: 'water_teal', 
+                wall: 'white_wall', foliage: 'leaves_pink', peak: 'stone', waterFreq: 0.5, bg: ['#fbcfe8', '#fdf2f8'],
+                hero: { wall: 'timber', roof: 'brick_red', detail: 'glass' }
+            },
+            TROPICAL: { 
+                label: 'Tropical Islands', type: 'NATURE', floor: 'sand', liquid: 'water_teal', 
+                wall: 'timber', foliage: 'leaves', peak: 'stone', waterFreq: 0.8, bg: ['#0ea5e9', '#7dd3fc'],
+                hero: { wall: 'timber', roof: 'leaves_dead', detail: 'leaves' }
+            },
+            SWAMP: { 
+                label: 'Haunted Swamp', type: 'NATURE', floor: 'grass_dead', liquid: 'water_murky', 
+                wall: 'timber', foliage: 'leaves_dead', peak: 'stone', waterFreq: 0.6, bg: ['#365314', '#1a2e05'],
+                hero: { wall: 'stone', roof: 'rust', detail: 'neon_green' }
+            },
+            VOLCANIC: { 
+                label: 'Volcanic Wastes', type: 'NATURE', floor: 'obsidian', liquid: 'lava', 
+                wall: 'obsidian', foliage: 'grass_dead', peak: 'stone', waterFreq: 0.3, bg: ['#450a0a', '#7f1d1d'],
+                hero: { wall: 'obsidian', roof: 'steel', detail: 'lava' }
+            },
+            DESERT: { 
+                label: 'Painted Desert', type: 'NATURE', floor: 'sand', liquid: 'water', 
+                wall: 'sand_red', foliage: 'cactus', peak: 'sand_red', waterFreq: 0.1, bg: ['#06b6d4', '#fdba74'],
+                hero: { wall: 'sand_red', roof: 'white_wall', detail: 'gold' }
+            },
+        };
+
+        const CATEGORIES = {
+            WORK: { label: 'Work', color: 'blue', beacon: 'beacon_blue', icon: <Briefcase size={14} />, bg: 'bg-blue-500' },
+            PERSONAL: { label: 'Personal', color: 'orange', beacon: 'beacon_orange', icon: <Heart size={14} />, bg: 'bg-orange-500' },
+            HOUSE: { label: 'House', color: 'green', beacon: 'beacon_green', icon: <Home size={14} />, bg: 'bg-green-500' },
+            SHOPPING: { label: 'Shopping', color: 'purple', beacon: 'beacon_purple', icon: <ShoppingBag size={14} />, bg: 'bg-purple-500' },
+        };
+
+        const GRID_SIZE = 12;
+        const TILE_W = 84;
+        const TILE_H = 42;
+        const BLOCK_D = 28;
+
+        // --- UTILS ---
+        const noise = (x, y, seed) => {
+            const s = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
+            return s - Math.floor(s);
+        };
+
+        const seededRandom = (seed) => {
+            const m = 0x80000000;
+            const a = 1103515245;
+            const c = 12345;
+            let state = seed ? Math.floor(seed * m) : Math.floor(Math.random() * m);
+            return () => {
+                state = (a * state + c) % m;
+                return state / (m - 1);
+            };
+        };
+
+        const copyToClipboard = (text) => {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
+            document.body.removeChild(textArea);
+        };
+
+        const App = () => {
+            const [world, setWorld] = useState({});
+            const [taskMap, setTaskMap] = useState({});
+            const [seed, setSeed] = useState(Math.random());
+            const [themeKey, setThemeKey] = useState('MEDITERRANEAN');
+            const [isThemeLocked, setIsThemeLocked] = useState(false);
+            const [isFocusMode, setIsFocusMode] = useState(false);
+            const [hoveredTask, setHoveredTask] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [zoom, setZoom] = useState(1.0);
+            const [showDataView, setShowDataView] = useState(false);
+            const [showThemeMenu, setShowThemeMenu] = useState(false);
+            
+            const [canvasSize, setCanvasSize] = useState({ w: 800, h: 600 });
+            const containerRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            const [tasks, setTasks] = useState(() => {
+                try {
+                    const savedTasks = localStorage.getItem('iso-tasks');
+                    return savedTasks ? JSON.parse(savedTasks) : [];
+                } catch (e) {
+                    console.error("Failed to load tasks", e);
+                    return [];
+                }
+            });
+            
+            const [newTaskTitle, setNewTaskTitle] = useState('');
+            const [newTaskCategory, setNewTaskCategory] = useState('WORK');
+
+            useEffect(() => {
+                localStorage.setItem('iso-tasks', JSON.stringify(tasks));
+            }, [tasks]);
+
+            useEffect(() => {
+                const updateSize = () => {
+                    if (containerRef.current) {
+                        setCanvasSize({
+                            w: containerRef.current.clientWidth,
+                            h: containerRef.current.clientHeight
+                        });
+                    }
+                };
+                window.addEventListener('resize', updateSize);
+                updateSize(); 
+                return () => window.removeEventListener('resize', updateSize);
+            }, []);
+
+            const handleReroll = () => {
+                setSeed(Math.random());
+                if (!isThemeLocked) {
+                    const keys = Object.keys(THEMES);
+                    const randomKey = keys[Math.floor(Math.random() * keys.length)];
+                    setThemeKey(randomKey);
+                }
+            };
+
+            const generateWorld = useCallback(() => {
+                const newWorld = {};
+                const newTaskMap = {};
+                const center = GRID_SIZE / 2;
+                const scene = THEMES[themeKey];
+
+                const buildableSpots = [];
+                
+                // 1. Terrain Generation
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    for (let y = 0; y < GRID_SIZE; y++) {
+                        const key = `${x},${y}`;
+                        const nHeight = noise(x, y, seed); 
+                        const nFeature = noise(x, y, seed + 100);
+                        
+                        let stack = ['bedrock']; 
+                        let isBuildable = false;
+
+                        if (scene.type === 'CITY') {
+                            let elevation = Math.floor(nHeight * scene.elevation);
+                            if (themeKey === 'MARS_COLONY' || themeKey === 'UNDERGROUND') elevation = 0; 
+                            
+                            for(let i=0; i<=elevation; i++) stack.push(scene.floor); 
+
+                            const isRoad = (x % 3 === 0 || y % 3 === 0);
+                            
+                            if (isRoad) {
+                                stack[stack.length-1] = scene.road; 
+                                if ((x%3===0 && y%2===0) || (y%3===0 && x%2===0)) {
+                                    if (nFeature > 0.3) {
+                                        const decor = scene.decor[Math.floor(Math.abs(nFeature*10)) % scene.decor.length];
+                                        stack.push(decor);
+                                    }
+                                }
+                            } else {
+                                isBuildable = true;
+                            }
+
+                        } else {
+                            const ridge = Math.abs(nHeight); 
+                            const isMountain = ridge > 0.6;
+                            const lakeNoise = Math.sin(x*0.8 + seed) * Math.cos(y*0.8 + seed*0.5);
+                            const isWater = lakeNoise > (1.0 - scene.waterFreq); 
+
+                            if (isWater) {
+                                stack.push(scene.liquid);
+                            } else if (isMountain) {
+                                const h = Math.floor(ridge * 5);
+                                for(let i=0; i<h; i++) stack.push(scene.peak === 'snow' ? 'stone' : scene.peak);
+                                if (h > 2 && scene.peak === 'snow') stack.push('snow');
+                            } else {
+                                stack.push(scene.floor);
+                                if (nFeature > 0.4) {
+                                    stack.push('timber');
+                                    stack.push(scene.foliage);
+                                    if (nFeature > 0.8) stack.push(scene.foliage); 
+                                } else if (nFeature < 0.2) {
+                                    if (themeKey === 'SWAMP') stack.push('leaves_dead');
+                                    else if (themeKey === 'VOLCANIC') stack.push('obsidian'); 
+                                    else stack.push('leaves');
+                                }
+                                isBuildable = true;
+                            }
+                        }
+
+                        newWorld[key] = stack;
+                        if (isBuildable) buildableSpots.push({ x, y, key, nHeight, nFeature });
+                    }
+                }
+
+                // Shuffle Spots
+                const rng = seededRandom(seed);
+                for (let i = buildableSpots.length - 1; i > 0; i--) {
+                    const j = Math.floor(rng() * (i + 1));
+                    [buildableSpots[i], buildableSpots[j]] = [buildableSpots[j], buildableSpots[i]];
+                }
+
+                const activeTasks = tasks.filter(t => !t.completed);
+                const placedCoords = [];
+                const MIN_DIST = 2; 
+
+                activeTasks.forEach((task, index) => {
+                    let bestSpotIdx = -1;
+                    for(let i=0; i < buildableSpots.length; i++) {
+                        const spot = buildableSpots[i];
+                        const tooClose = placedCoords.some(p => Math.abs(p.x - spot.x) + Math.abs(p.y - spot.y) < MIN_DIST);
+                        if (!tooClose) {
+                            bestSpotIdx = i;
+                            break;
+                        }
+                    }
+                    
+                    if (bestSpotIdx === -1) bestSpotIdx = 0; 
+                    if (bestSpotIdx >= buildableSpots.length) return; 
+
+                    const spot = buildableSpots.splice(bestSpotIdx, 1)[0];
+                    placedCoords.push({x: spot.x, y: spot.y});
+                    
+                    newTaskMap[spot.key] = { taskId: task.id, stackHeight: 0 }; 
+
+                    const stack = [...newWorld[spot.key]];
+                    const cat = CATEGORIES[task.category];
+                    const h = 5 + (task.id % 3); 
+                    const heroStyle = scene.hero;
+                    
+                    if (stack[stack.length-1] !== 'concrete') stack.push('concrete'); 
+
+                    for(let i=0; i<h; i++) stack.push(heroStyle.wall);
+                    stack.push(heroStyle.roof);
+                    stack.push(cat.beacon);
+                    
+                    newWorld[spot.key] = stack;
+                    newTaskMap[spot.key].stackHeight = stack.length;
+                });
+
+                tasks.filter(t => t.completed).forEach((task, index) => {
+                    if (index < buildableSpots.length) {
+                        const spot = buildableSpots.shift();
+                        const stack = [...newWorld[spot.key]];
+                        if (scene.type === 'CITY') {
+                            if (stack[stack.length-1] === 'concrete') stack[stack.length-1] = 'grass';
+                            stack.push('leaves'); 
+                        } else {
+                            stack.push('stone', 'lamp_yellow'); 
+                        }
+                        newWorld[spot.key] = stack;
+                    }
+                });
+
+                if (scene.type === 'CITY') {
+                    buildableSpots.forEach(spot => {
+                        const stack = [...newWorld[spot.key]];
+                        if (spot.nFeature > 0.4) {
+                            const mat = scene.wall[(Math.floor(spot.nFeature * 10)) % scene.wall.length];
+                            const h = 1 + (Math.floor(spot.nHeight * 10) % 2); 
+                            for(let i=0; i<h; i++) stack.push(mat);
+                            stack.push(scene.roof); 
+                        }
+                        newWorld[spot.key] = stack;
+                    });
+                }
+
+                setWorld(newWorld);
+                setTaskMap(newTaskMap);
+            }, [seed, tasks, themeKey]); 
+
+            useEffect(() => { generateWorld(); }, [generateWorld]);
+
+            // --- RENDERING ---
+
+            const drawBlock = (ctx, x, y, type, zIndex, currentZoom, isTaskBlock, isFocusMode) => {
+                if (!MATERIALS[type]) return; 
+                const mat = MATERIALS[type];
+                const [top, left, right] = mat.c;
+                
+                let fillTop = top, fillLeft = left, fillRight = right;
+                
+                if (isFocusMode && !isTaskBlock && type !== 'bedrock') {
+                    ctx.globalAlpha = 0.2; 
+                } else {
+                    ctx.globalAlpha = 1.0;
+                }
+
+                const TW = TILE_W * currentZoom;
+                const TH = TILE_H * currentZoom;
+                const BD = BLOCK_D * currentZoom;
+
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + TW / 2, y + TH / 2);
+                ctx.lineTo(x, y + TH);
+                ctx.lineTo(x - TW / 2, y + TH / 2);
+                ctx.fillStyle = fillTop;
+                ctx.fill();
+                
+                ctx.fillStyle = fillLeft;
+                ctx.beginPath();
+                ctx.moveTo(x - TW / 2, y + TH / 2);
+                ctx.lineTo(x, y + TH);
+                ctx.lineTo(x, y + TH + BD);
+                ctx.lineTo(x - TW / 2, y + TH / 2 + BD);
+                ctx.fill();
+
+                ctx.fillStyle = fillRight;
+                ctx.beginPath();
+                ctx.moveTo(x + TW / 2, y + TH / 2);
+                ctx.lineTo(x, y + TH);
+                ctx.lineTo(x, y + TH + BD);
+                ctx.lineTo(x + TW / 2, y + TH / 2 + BD);
+                ctx.fill();
+
+                ctx.globalAlpha = 1.0; 
+
+                if (!isFocusMode || isTaskBlock) {
+                    const isWall = ['glass', 'glass_dark', 'concrete', 'white_wall', 'brick_red', 'brick_brown', 'steel', 'tile_white'].includes(type);
+                    if (isWall && zIndex > 1) { 
+                        const hasWindow = (Math.sin(x * 12 + y * 23 + zIndex * 34) > 0.3); 
+                        if (hasWindow) {
+                            let winColor = '#475569'; 
+                            if (themeKey === 'UNDERGROUND') winColor = '#a3e635'; 
+                            else if (themeKey === 'NEO_TOKYO') winColor = '#e879f9';
+                            else if (mat.glass) winColor = '#bae6fd'; 
+                            
+                            ctx.fillStyle = winColor;
+                            ctx.fillRect(x + TW/4, y + TH/1.5 + BD/4, TW/6, BD/3);
+                            ctx.fillRect(x - TW/2.5, y + TH/1.5 + BD/4, TW/6, BD/3);
+                        }
+                    }
+
+                    if (mat.emit) {
+                        const cx = x;
+                        const cy = y + TH/2;
+                        const grad = ctx.createRadialGradient(cx, cy, TW/10, cx, cy, TW);
+                        grad.addColorStop(0, mat.emit);
+                        grad.addColorStop(1, 'rgba(0,0,0,0)');
+                        
+                        ctx.globalCompositeOperation = 'screen'; 
+                        ctx.fillStyle = grad;
+                        ctx.globalAlpha = 0.6;
+                        ctx.fillRect(x - TW, y - TH, TW*2, TH*3);
+                        ctx.globalAlpha = 1.0;
+                        ctx.globalCompositeOperation = 'source-over'; 
+                    }
+                }
+            };
+
+            const renderScene = (ctx, width, height) => {
+                ctx.clearRect(0, 0, width, height);
+
+                const grad = ctx.createLinearGradient(0, 0, 0, height);
+                const bg = THEMES[themeKey].bg || ['#000', '#333'];
+
+                grad.addColorStop(0, bg[0]);
+                grad.addColorStop(1, bg[1]);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, height);
+                
+                const originX = width / 2;
+                const originY = height / 2.5; // Adjusted to push scene up
+
+                const keys = Object.keys(world).sort((a, b) => {
+                    const [ax, ay] = a.split(',').map(Number);
+                    const [bx, by] = b.split(',').map(Number);
+                    return (ax + ay) - (bx + by);
+                });
+
+                keys.forEach(key => {
+                    const [x, y] = key.split(',').map(Number);
+                    const stack = world[key];
+                    const isTaskBlock = taskMap[key] !== undefined;
+
+                    stack.forEach((type, z) => {
+                        const TW = TILE_W * zoom;
+                        const TH = TILE_H * zoom;
+                        const BD = BLOCK_D * zoom;
+                        
+                        const screenX = originX + (x - y) * (TW / 2);
+                        const screenY = originY + (x + y) * (TH / 2) - (z * BD);
+                        
+                        drawBlock(ctx, screenX, screenY, type, z, zoom, isTaskBlock, isFocusMode);
+                    });
+                });
+            };
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    renderScene(canvas.getContext('2d'), canvas.width, canvas.height);
+                }
+            }, [world, themeKey, zoom, canvasSize, isFocusMode]); 
+
+            const handleMouseMove = (e) => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                
+                const TW = TILE_W * zoom;
+                const TH = TILE_H * zoom;
+                const BD = BLOCK_D * zoom;
+                
+                const originX = canvas.width / 2;
+                const originY = canvas.height / 2.5; 
+                
+                let bestMatch = null;
+
+                Object.entries(taskMap).forEach(([key, info]) => {
+                    const [gx, gy] = key.split(',').map(Number);
+                    const task = tasks.find(t => t.id === info.taskId);
+                    if (!task) return;
+
+                    const screenX = originX + (gx - gy) * (TW / 2);
+                    const baseY = originY + (gx + gy) * (TH / 2);
+                    const topY = baseY - (info.stackHeight * BD);
+
+                    const dx = Math.abs(mx - screenX);
+                    
+                    if (dx < TW / 2) {
+                        if (my >= topY && my <= baseY + TH) {
+                            bestMatch = task;
+                        }
+                    }
+                });
+
+                setHoveredTask(bestMatch);
+                setMousePos({ x: e.clientX, y: e.clientY });
+            };
+
+            const addTask = () => {
+                if(!newTaskTitle.trim()) return;
+                const nt = { id: Date.now(), title: newTaskTitle, category: newTaskCategory, completed: false };
+                setTasks([...tasks, nt]);
+                setNewTaskTitle('');
+            };
+            const toggleTask = (id) => setTasks(tasks.map(t => t.id===id ? {...t, completed: !t.completed} : t));
+            const deleteTask = (id) => setTasks(tasks.filter(t => t.id!==id));
+
+            return (
+                <div className="relative min-h-screen font-sans bg-black overflow-hidden flex flex-col" ref={containerRef}>
+                    <div className="absolute inset-0 z-0">
+                        <canvas 
+                            ref={canvasRef} 
+                            width={canvasSize.w} 
+                            height={canvasSize.h} 
+                            className="block"
+                            onMouseMove={handleMouseMove} 
+                        />
+                    </div>
+
+                    <div className="relative z-10 flex items-center justify-between px-8 py-6 pointer-events-none">
+                        <div className="flex flex-col drop-shadow-lg">
+                            <h1 className="text-white font-black text-4xl tracking-tight leading-none">{THEMES[themeKey].label}</h1>
+                            <span className="text-white/80 text-xs font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+                                <Globe2 size={12} /> {THEMES[themeKey].type} • {tasks.filter(t => !t.completed).length} Tasks
+                            </span>
+                        </div>
+                        <div className="pointer-events-auto flex gap-3">
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setShowThemeMenu(!showThemeMenu)}
+                                    className="flex items-center gap-3 bg-black/40 backdrop-blur-md rounded-2xl p-2 pl-4 border border-white/10 hover:bg-black/60 transition-all text-white"
+                                >
+                                    <span className="text-xs font-bold uppercase tracking-wide">{THEMES[themeKey].label}</span>
+                                    <ChevronDown size={16} />
+                                </button>
+                                
+                                {showThemeMenu && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto custom-scrollbar">
+                                        {Object.keys(THEMES).map(k => (
+                                            <button 
+                                                key={k}
+                                                onClick={() => { setThemeKey(k); if(!isThemeLocked) setSeed(Math.random()); setShowThemeMenu(false); }}
+                                                className={`w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider hover:bg-white/10 transition-colors ${themeKey === k ? 'text-white bg-white/5' : 'text-white/50'}`}
+                                            >
+                                                {THEMES[k].label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <button onClick={() => setIsThemeLocked(!isThemeLocked)} className={`p-3 rounded-2xl border border-white/10 backdrop-blur-md transition-all ${isThemeLocked ? 'bg-orange-500/20 text-orange-400' : 'bg-black/40 text-white/50 hover:text-white'}`}>
+                                {isThemeLocked ? <Lock size={20} /> : <Unlock size={20} />}
+                            </button>
+                            
+                            <button onClick={() => setIsFocusMode(!isFocusMode)} className={`p-3 rounded-2xl border border-white/10 backdrop-blur-md transition-all ${isFocusMode ? 'bg-indigo-500 text-white' : 'bg-black/40 text-white/50 hover:text-white'}`} title="Focus Mode">
+                                {isFocusMode ? <Eye size={20} /> : <EyeOff size={20} />}
+                            </button>
+
+                            <button onClick={() => setShowDataView(!showDataView)} className={`p-3 rounded-2xl border border-white/10 backdrop-blur-md transition-all ${showDataView ? 'bg-white text-black' : 'bg-black/40 text-white hover:bg-black/50'}`}>
+                                <QrCode size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {hoveredTask && (
+                        <div className="fixed z-50 pointer-events-none flex flex-col items-center gap-2 transform -translate-y-full -translate-x-1/2 -mt-4 transition-all duration-300 ease-out"
+                            style={{ top: mousePos.y, left: mousePos.x }}>
+                            <div className="bg-white/90 backdrop-blur-xl shadow-2xl rounded-2xl p-4 border border-white/50 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-200">
+                                <span className={`w-3 h-3 rounded-full ${CATEGORIES[hoveredTask.category].bg}`} />
+                                <div>
+                                    <div className="text-sm font-black text-slate-900 leading-none">{hoveredTask.title}</div>
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">{hoveredTask.category} Building</div>
+                                </div>
+                            </div>
+                            <div className="w-0.5 h-8 bg-white/50" />
+                        </div>
+                    )}
+
+                    <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-end p-8">
+                        
+                        <div className="flex items-end justify-between w-full pointer-events-auto">
+                            
+                            <div className="w-80 bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-4 flex flex-col gap-4 shadow-2xl transition-all hover:bg-black/60">
+                                <div className="flex gap-2">
+                                    <input 
+                                        className="flex-1 bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:bg-white/20 font-medium placeholder:text-white/30"
+                                        placeholder="New task..." 
+                                        value={newTaskTitle} 
+                                        onChange={(e) => setNewTaskTitle(e.target.value)} 
+                                        onKeyDown={(e) => e.key === 'Enter' && addTask()}
+                                    />
+                                    <button onClick={addTask} className="bg-white text-black rounded-xl px-4 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                        <Plus size={20} />
+                                    </button>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    {Object.entries(CATEGORIES).map(([k, cat]) => (
+                                        <button 
+                                            key={k} 
+                                            onClick={() => setNewTaskCategory(k)}
+                                            className={`flex-1 h-1.5 rounded-full transition-all ${newTaskCategory === k ? `${cat.bg} scale-110 shadow-[0_0_10px_rgba(255,255,255,0.5)]` : 'bg-white/10 hover:bg-white/30'}`}
+                                            title={cat.label}
+                                        />
+                                    ))}
+                                </div>
+
+                                <div className="max-h-32 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                    {tasks.length === 0 && <div className="text-white/30 text-xs text-center py-2">Start adding tasks to build your city</div>}
+                                    {tasks.map(task => (
+                                        <div key={task.id} className="group flex items-center justify-between p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <button onClick={() => toggleTask(task.id)} className={`w-5 h-5 rounded-full border border-white/30 flex items-center justify-center ${task.completed ? 'bg-green-500 border-green-500' : 'hover:border-white'}`}>
+                                                    {task.completed && <CheckCircle2 size={12} className="text-white" />}
+                                                </button>
+                                                <span className={`text-xs font-medium truncate ${task.completed ? 'text-white/30 line-through' : 'text-white'}`}>{task.title}</span>
+                                            </div>
+                                            <button onClick={() => deleteTask(task.id)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex items-end gap-4">
+                                <button 
+                                    onClick={handleReroll} 
+                                    className="group relative w-16 h-16 bg-white rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+                                    title="Reroll Scene"
+                                >
+                                    <Dice5 size={28} className="text-black group-hover:rotate-180 transition-transform duration-700 ease-out" />
+                                </button>
+
+                                <div className="bg-black/40 backdrop-blur-md rounded-2xl p-2 border border-white/10 flex flex-col gap-2">
+                                    <button onClick={() => setZoom(z => Math.min(3.0, z + 0.2))} className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors"><ZoomIn size={20} /></button>
+                                    <div className="w-8 h-px bg-white/10 mx-auto" />
+                                    <button onClick={() => setZoom(z => Math.max(0.5, z - 0.2))} className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors"><ZoomOut size={20} /></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {showDataView && (
+                        <div className="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-8 animate-in fade-in duration-200">
+                            <div className="w-full max-w-2xl bg-black border border-white/10 rounded-3xl p-8 shadow-2xl relative">
+                                <button onClick={() => setShowDataView(false)} className="absolute top-6 right-6 text-white/50 hover:text-white">
+                                    <X size={24} />
+                                </button>
+                                
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="p-4 bg-white/10 rounded-2xl text-white">
+                                        <QrCode size={32} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-white">Data View</h2>
+                                        <p className="text-white/50 text-sm">Scan to export tasks</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Raw List</label>
+                                        <div className="bg-white/5 rounded-xl p-4 font-mono text-xs text-white/80 h-64 overflow-y-auto select-all border border-white/5 custom-scrollbar">
+                                            {tasks.map(t => `[${t.completed ? 'x' : ' '}] ${t.title} (${t.category})`).join('\n')}
+                                        </div>
+                                        <button 
+                                            onClick={() => copyToClipboard(tasks.map(t => `[${t.completed ? 'x' : ' '}] ${t.title} (${t.category})`).join('\n'))}
+                                            className="w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors"
+                                        >
+                                            <Copy size={16} /> Copy to Clipboard
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center bg-white rounded-2xl p-4">
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tasks.map(t => `[${t.completed ? 'x' : ' '}] ${t.title}`).join('\n'))}`}
+                                            alt="Task QR Code"
+                                            className="w-48 h-48 mix-blend-multiply"
+                                        />
+                                        <p className="text-black/40 text-[10px] font-bold uppercase tracking-widest mt-6">Scan with Phone</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
