@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Monsters</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: var(--final-opacity, 1); }
+        }
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(12px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up {
+            animation: fadeUp 0.5s ease-out both;
+        }
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            user-select: none;
+        }
+        #monster-container div {
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen w-full flex flex-col items-center justify-center transition-colors duration-500 overflow-hidden relative">
+    
+    <!-- Subtle grid background -->
+    <div id="grid-bg" class="absolute inset-0 pointer-events-none opacity-30"></div>
+
+    <div class="relative z-10 flex flex-col items-center gap-10 p-6 w-full max-w-lg">
+        <!-- Monster Display Area -->
+        <div id="monster-stage" class="relative transition-all duration-300 ease-out">
+            <div id="monster-container" class="relative w-full h-full"></div>
+        </div>
+
+        <!-- Identity Section -->
+        <div class="text-center space-y-2">
+            <h1 id="monster-name" class="text-3xl md:text-4xl font-bold tracking-tight"></h1>
+            <p id="monster-id" class="text-xs uppercase tracking-widest font-semibold opacity-60"></p>
+        </div>
+
+        <!-- Action Button -->
+        <button id="hatch-btn" class="group relative px-8 py-3 rounded-full font-bold text-sm tracking-widest uppercase transition-all duration-200 active:scale-95 shadow-lg">
+            <span class="relative z-10">Space / Tap to Hatch</span>
+        </button>
+    </div>
+
+    <script>
+        const GRID = 11;
+        let count = 0;
+        let currentMonster = null;
+        let cellSize = 48;
+
+        const NAMES_1 = ["Bloop", "Snorf", "Glim", "Pix", "Zorp", "Flum", "Bonk", "Tink", "Wub", "Noot", "Quib", "Splork", "Dink", "Fuzz", "Morp", "Gleeb", "Chirp", "Plop", "Grub", "Skwee"];
+        const NAMES_2 = ["ling", "o", "us", "ette", "ix", "bert", "worth", "ski", "oid", "ini", "amus", "aroo", "kins", "worm", "bean", "drop", "chunk", "flop", "snap", "ton"];
+
+        // Helper Functions
+        const hslToString = (h, s, l, a = 1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const randomName = () => NAMES_1[Math.floor(Math.random() * NAMES_1.length)] + NAMES_2[Math.floor(Math.random() * NAMES_2.length)];
+
+        function findTopY(grid, x) {
+            for (let y = 0; y < GRID; y++) if (grid[y][x]) return y;
+            return GRID;
+        }
+
+        function findBottomY(grid, x) {
+            for (let y = GRID - 1; y >= 0; y--) if (grid[y][x]) return y;
+            return 0;
+        }
+
+        function tryGenerateMonster(forceEyes = false) {
+            const grid = Array.from({ length: GRID }, () => Array(GRID).fill(false));
+            const halfW = Math.floor(GRID / 2);
+            const centerY = Math.floor(GRID / 2);
+
+            const baseRadius = 3.0 + Math.random() * 1.8;
+            const blobPoints = 8 + Math.floor(Math.random() * 6);
+            const angleOffsets = Array.from({ length: blobPoints }, () => baseRadius + (Math.random() - 0.5) * 1.6);
+
+            for (let y = 0; y < GRID; y++) {
+                for (let x = 0; x <= halfW; x++) {
+                    const dx = x - halfW;
+                    const dy = y - centerY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx);
+                    const normalizedAngle = ((angle + Math.PI) / (2 * Math.PI)) * blobPoints;
+                    const idx = Math.floor(normalizedAngle) % blobPoints;
+                    const nextIdx = (idx + 1) % blobPoints;
+                    const frac = normalizedAngle - Math.floor(normalizedAngle);
+                    const radius = lerp(angleOffsets[idx], angleOffsets[nextIdx], frac);
+
+                    if (dist <= radius) {
+                        grid[y][x] = true;
+                        grid[y][GRID - 1 - x] = true;
+                    }
+                }
+            }
+
+            const appendageType = Math.floor(Math.random() * 5);
+            if (appendageType === 0 || appendageType === 3) {
+                const hornX = halfW - 1 - Math.floor(Math.random() * 2);
+                for (let i = 0; i < 1 + Math.floor(Math.random() * 2); i++) {
+                    const ty = Math.max(0, findTopY(grid, hornX) - 1 - i);
+                    if (ty >= 0) { grid[ty][hornX] = true; grid[ty][GRID - 1 - hornX] = true; }
+                }
+            }
+            if (appendageType === 1 || appendageType === 3) {
+                const footX = halfW - Math.floor(Math.random() * 2);
+                const bottomY = findBottomY(grid, footX);
+                if (bottomY < GRID - 1) { grid[bottomY + 1][footX] = true; grid[bottomY + 1][GRID - 1 - footX] = true; }
+            }
+            if (appendageType === 2 || appendageType === 4) {
+                const by = findBottomY(grid, halfW);
+                for (let i = 1; i <= 1 + Math.floor(Math.random() * 2); i++) {
+                    if (by + i < GRID) {
+                        grid[by + i][halfW] = true;
+                        if (Math.random() > 0.5 && halfW + 1 < GRID) grid[by + i][halfW + (i > 1 ? 0 : Math.random() > 0.5 ? 1 : -1)] = true;
+                    }
+                }
+            }
+
+            const hue1 = Math.random() * 360;
+            const hue2 = hue1 + 100 + Math.random() * 120;
+            const sat1 = 55 + Math.random() * 25;
+            const sat2 = 55 + Math.random() * 25;
+            const light1 = 62 + Math.random() * 12;
+            const light2 = 62 + Math.random() * 12;
+            const gradAngle = Math.random() * Math.PI * 2;
+
+            const filledCells = [];
+            for (let y = 0; y < GRID; y++) {
+                for (let x = 0; x < GRID; x++) if (grid[y][x]) filledCells.push({ x, y });
+            }
+
+            if (filledCells.length === 0) return null;
+
+            const minX = Math.min(...filledCells.map(c => c.x));
+            const maxX = Math.max(...filledCells.map(c => c.x));
+            const minY = Math.min(...filledCells.map(c => c.y));
+            const maxY = Math.max(...filledCells.map(c => c.y));
+
+            const lookRight = Math.random() > 0.5;
+            let eyeCells = new Set();
+            let eyeBlackPositions = [];
+            let eyesPlaced = false;
+
+            for (let tryGap = 1; tryGap <= 3 && !eyesPlaced; tryGap++) {
+                for (let tryY = centerY - 2; tryY <= centerY + 1 && !eyesPlaced; tryY++) {
+                    const lWhiteX = lookRight ? halfW - tryGap - 1 : halfW - tryGap;
+                    const lBlackX = lookRight ? halfW - tryGap : halfW - tryGap - 1;
+                    const rWhiteX = lookRight ? halfW + tryGap : halfW + tryGap + 1;
+                    const rBlackX = lookRight ? halfW + tryGap + 1 : halfW + tryGap;
+                    const positions = [[lWhiteX, tryY], [lBlackX, tryY], [rWhiteX, tryY], [rBlackX, tryY]];
+                    const allOnBody = positions.every(([ex, ey]) => ex >= 0 && ex < GRID && ey >= 0 && ey < GRID && grid[ey][ex]);
+                    const allSurrounded = allOnBody && positions.every(([ex, ey]) => {
+                        return [[0,-1],[0,1],[-1,0],[1,0]].every(([dx, dy]) => {
+                            const nx = ex + dx, ny = ey + dy;
+                            return nx >= 0 && nx < GRID && ny >= 0 && ny < GRID && grid[ny][nx];
+                        });
+                    });
+                    if (allSurrounded) {
+                        eyeBlackPositions = [[lBlackX, tryY], [rBlackX, tryY]];
+                        for (const pos of positions) eyeCells.add(`${pos[0]},${pos[1]}`);
+                        eyesPlaced = true;
+                    }
+                }
+            }
+
+            if (!eyesPlaced && !forceEyes) return null;
+
+            const cells = [];
+            const eyeBlackSet = new Set(eyeBlackPositions.map(([x, y]) => `${x},${y}`));
+
+            for (const { x, y } of filledCells) {
+                const key = `${x},${y}`;
+                if (eyesPlaced && eyeCells.has(key)) {
+                    cells.push({ x, y, color: eyeBlackSet.has(key) ? "#111111" : "#ffffff", alpha: 1 });
+                    continue;
+                }
+                const nx = maxX > minX ? (x - minX) / (maxX - minX) : 0.5;
+                const ny = maxY > minY ? (y - minY) / (maxY - minY) : 0.5;
+                const t = Math.max(0, Math.min(1, 0.5 + (nx - 0.5) * Math.cos(gradAngle) + (ny - 0.5) * Math.sin(gradAngle)));
+                const h = lerp(hue1, hue2, t) % 360;
+                const cx = (x - (minX + maxX) / 2) / ((maxX - minX) / 2 || 1);
+                const cy = (y - (minY + maxY) / 2) / ((maxY - minY) / 2 || 1);
+                const edgeDist = Math.min(1, Math.sqrt(cx * cx + cy * cy));
+                const edgeFade = Math.max(0, (edgeDist - 0.4) / 0.6);
+                const alpha = Math.max(0.12, Math.min(1, 1.2 - edgeDist * 0.7));
+                cells.push({ x, y, color: hslToString(h, lerp(sat1, sat2, t) * (1 - edgeFade * 0.45), lerp(light1, light2, t) + edgeFade * 18), alpha });
+            }
+
+            return { cells, bgHue: (hue1 + hue2) / 2, bounds: { minX, maxX, minY, maxY, spanX: maxX - minX + 1, spanY: maxY - minY + 1 } };
+        }
+
+        function generate() {
+            let result = null;
+            for (let i = 0; i < 50; i++) {
+                result = tryGenerateMonster();
+                if (result) break;
+            }
+            if (!result) result = tryGenerateMonster(true);
+            
+            currentMonster = result;
+            count++;
+            render();
+        }
+
+        function updateCellSize() {
+            const minDimension = Math.min(window.innerWidth, window.innerHeight);
+            const calculated = Math.floor((minDimension * 0.7) / GRID);
+            cellSize = Math.max(20, Math.min(48, calculated));
+            if (currentMonster) render(true); // Silent re-render on resize
+        }
+
+        function render(isResize = false) {
+            const { cells, bgHue, bounds } = currentMonster;
+            
+            // Update UI Colors
+            document.body.style.backgroundColor = `hsl(${bgHue}, 12%, 94%)`;
+            document.getElementById('grid-bg').style.backgroundImage = `radial-gradient(circle, hsl(${bgHue}, 15%, 80%) 1px, transparent 1px)`;
+            
+            const hatchBtn = document.getElementById('hatch-btn');
+            hatchBtn.style.background = `hsl(${bgHue}, 30%, 80%)`;
+            hatchBtn.style.color = `hsl(${bgHue}, 45%, 25%)`;
+            hatchBtn.style.boxShadow = `0 4px 15px -2px hsla(${bgHue}, 30%, 50%, 0.3)`;
+
+            const nameEl = document.getElementById('monster-name');
+            nameEl.style.color = `hsl(${bgHue}, 40%, 30%)`;
+            if (!isResize) {
+                nameEl.textContent = randomName();
+                nameEl.classList.remove('animate-fade-up');
+                void nameEl.offsetWidth; // Trigger reflow
+                nameEl.classList.add('animate-fade-up');
+                document.getElementById('monster-id').textContent = `Entry #${String(count).padStart(4, "0")}`;
+            }
+
+            // Setup Stage
+            const stage = document.getElementById('monster-stage');
+            stage.style.width = `${bounds.spanX * cellSize}px`;
+            stage.style.height = `${bounds.spanY * cellSize}px`;
+
+            const container = document.getElementById('monster-container');
+            container.innerHTML = '';
+
+            cells.forEach((cell, i) => {
+                const div = document.createElement('div');
+                div.style.position = 'absolute';
+                div.style.left = `${(cell.x - bounds.minX) * cellSize}px`;
+                div.style.top = `${(cell.y - bounds.minY) * cellSize}px`;
+                div.style.width = `${cellSize + 0.5}px`;
+                div.style.height = `${cellSize + 0.5}px`;
+                div.style.backgroundColor = cell.color;
+                div.style.opacity = cell.alpha;
+                if (!isResize) {
+                    div.style.animation = `popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) ${i * 8}ms both`;
+                }
+                container.appendChild(div);
+            });
+        }
+
+        // Initialization
+        window.addEventListener('resize', updateCellSize);
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                generate();
+            }
+        });
+        document.getElementById('hatch-btn').addEventListener('click', generate);
+
+        updateCellSize();
+        generate();
+    </script>
+</body>
+</html>
