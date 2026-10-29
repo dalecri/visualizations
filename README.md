@@ -17,6 +17,7 @@ Seven visual generators and scenes in one repo, each in its own folder exactly a
 | IsoScapes | [isocity-todo-app/](isocity-todo-app/) | An isometric city world builder, from the isocity-todo-app repo. |
 
 | Soft Gradient | [soft-gradient-generator/](soft-gradient-generator/) | Blurred gradient backgrounds, downloadable as PNG. |
+| [GLYPHFIELD](glyphfield/) | Seeded DOS-tile generative art: six seeded weavers (Kaleidoscope Garden, Circuit Ruins, Horizon, The Deep, Tapestry, Life Bloom), seven palettes, a ~90 ms DOS tick, PNG export at 4x and copy-as-text. |
 
 ## Adding a project
 

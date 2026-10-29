@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLYPHFIELD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14101C;--fg:#c9bfd8;--dim:#7a6e8e;--line:#2b2238;--panel:#1b1526;--hi:#ece4f7;--press:#2e2442;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:12px/1.4 'Space Mono',ui-monospace,Menlo,Consolas,monospace}
+body{min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:13px;letter-spacing:.28em;margin:0 6px 0 0;color:var(--hi);font-weight:700}
+.ctl{display:flex;align-items:center;gap:5px}
+.l{color:var(--dim)}
+.actions{display:flex;flex-wrap:wrap;gap:5px}
+select,input[type=text],button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:0 8px;height:26px}
+select{padding-right:4px}
+button{cursor:pointer;white-space:nowrap}
+button:hover:not(:disabled),select:hover:not(:disabled),input:hover{border-color:#4a3c5e;color:var(--hi)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:1px solid #8a76a8;outline-offset:1px}
+button:disabled,select:disabled{opacity:.4;cursor:default}
+button[aria-pressed=true]{background:var(--press);color:var(--hi);border-color:#5a4878}
+.seg{display:inline-flex}
+.seg button{border-radius:0;margin-left:-1px;padding:0 7px}
+.seg button:first-child{border-radius:3px 0 0 3px;margin-left:0}
+.seg button:last-child{border-radius:0 3px 3px 0}
+input[type=text]{width:118px}
+.dice{padding:0 6px;font-size:14px;line-height:24px}
+.note{color:var(--dim);font-size:11px}
+#symCtl.off{opacity:.45}
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:10px;min-width:0}
+#stage{display:flex;align-items:center;justify-content:center;max-width:100%}
+#stage:fullscreen{background:var(--bg);width:100vw;height:100vh}
+canvas#c{display:block;max-width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;border:1px solid var(--line);box-shadow:0 0 0 5px #0d0a13,0 14px 48px rgba(0,0,0,.55)}
+#stage:fullscreen canvas#c{border:0;box-shadow:none}
+#hint{color:var(--dim);font-size:11px;text-align:center;transition:opacity 1.2s ease}
+#hint.gone{opacity:0;pointer-events:none}
+footer{display:flex;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);min-width:0}
+#keep{flex:none;height:62px}
+#strip{display:flex;gap:8px;overflow-x:auto;min-width:0;flex:1;padding-bottom:2px;scrollbar-width:thin}
+.thumb{flex:none;height:auto;padding:3px;display:flex;flex-direction:column;gap:3px;align-items:stretch;border-radius:3px}
+.thumb img{display:block;width:100px;height:auto;image-rendering:pixelated}
+.thumb span{font-size:10px;color:var(--dim);text-align:left;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+.thumb.today span{color:var(--hi)}
+.empty{color:var(--dim);font-size:11px;align-self:center}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--press);color:var(--hi);border:1px solid #5a4878;border-radius:3px;padding:5px 12px;font-size:11px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.on{opacity:1}
+@media (max-width:520px){
+  header{padding:10px 12px;gap:7px 10px}
+  main{padding:12px}
+  footer{padding:8px 12px}
+  input[type=text]{width:96px}
+}
+</style>
+</head>
+<body>
+<header id="bar">
+  <h1>GLYPHFIELD</h1>
+  <div class="ctl"><label class="l" for="weaver">weaver</label><select id="weaver"></select><button class="dice" id="weaverDice" title="Random weaver" aria-label="Random weaver">⚄</button></div>
+  <div class="ctl"><label class="l" for="palette">palette</label><select id="palette"></select></div>
+  <div class="ctl"><label class="l" for="seed">seed</label><input id="seed" type="text" spellcheck="false" autocomplete="off"><button class="dice" id="seedDice" title="Random seed" aria-label="Random seed">⚄</button></div>
+  <div class="ctl"><span class="l">size</span><div class="seg" id="size"><button data-v="S">S</button><button data-v="M">M</button><button data-v="L">L</button></div></div>
+  <div class="ctl" id="symCtl"><label class="l" for="sym">symmetry</label><select id="sym"><option value="bilateral">bilateral</option><option value="quad">quads</option><option value="kaleido">kaleidoscope</option></select></div>
+  <div class="ctl"><button id="anim" aria-pressed="true">animate</button><div class="seg" id="speed"><button data-v="0.5">½×</button><button data-v="1">1×</button><button data-v="2">2×</button></div><span id="motionNote" class="note" hidden>reduced motion: static</span></div>
+  <div class="actions">
+    <button id="regen" title="New seed (Space)">regenerate</button>
+    <button id="surprise">surprise me</button>
+    <button id="savePng" title="Save PNG (S)">save png</button>
+    <button id="copyTxt" title="Copy as text (C)">copy as text</button>
+    <button id="fs" title="Fullscreen (F)">fullscreen</button>
+  </div>
+</header>
+<main id="main">
+  <div id="stage"><canvas id="c" role="img" aria-label="Generated glyph artwork"></canvas></div>
+  <div id="hint">space new piece · f fullscreen · k keep · c copy text · s save png</div>
+</main>
+<footer id="foot"><button id="keep" title="Keep in gallery (K)">keep</button><div id="strip" role="list" aria-label="Gallery"></div></footer>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+// <engine>
+/* ---------- RNG: one seeded stream feeds every weaver ---------- */
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19;}h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^h>>>16)>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function makeRng(seed){
+  const r=mulberry32(hashStr(String(seed)));
+  r.int=n=>Math.floor(r()*n);
+  r.between=(a,b)=>a+Math.floor(r()*(b-a+1));
+  r.range=(a,b)=>a+r()*(b-a);
+  r.pick=arr=>arr[Math.floor(r()*arr.length)];
+  r.chance=p=>r()<p;
+  r.shuffle=arr=>{const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+  return r;
+}
+// animation-only hash (deterministic, never touches the seed stream)
+function h2(a,b){let h=Math.imul(a,374761393)+Math.imul(b,668265263)|0;h=Math.imul(h^h>>>13,1274126177);return((h^h>>>16)>>>0)/4294967296;}
+
+/* ---------- Glyphs: 8x8 pixel maps ("." empty, "#" ink) ---------- */
+const E8='........',F8='########',V1='...#....',V2='..#..#..';
+const rep=(s,n)=>Array(n).fill(s);
+const GLYPHS={
+'█':rep(F8,8),
+'▓':['.###.###','##.###.#','.###.###','##.###.#','.###.###','##.###.#','.###.###','##.###.#'],
+'▒':['#.#.#.#.','.#.#.#.#','#.#.#.#.','.#.#.#.#','#.#.#.#.','.#.#.#.#','#.#.#.#.','.#.#.#.#'],
+'░':['#...#...','..#...#.','#...#...','..#...#.','#...#...','..#...#.','#...#...','..#...#.'],
+'▄':[...rep(E8,4),...rep(F8,4)],
+'▀':[...rep(F8,4),...rep(E8,4)],
+'▌':rep('####....',8),
+'▐':rep('....####',8),
+'─':[E8,E8,E8,F8,E8,E8,E8,E8],
+'│':rep(V1,8),
+'┌':[E8,E8,E8,'...#####',V1,V1,V1,V1],
+'┐':[E8,E8,E8,'####....',V1,V1,V1,V1],
+'└':[V1,V1,V1,'...#####',E8,E8,E8,E8],
+'┘':[V1,V1,V1,'####....',E8,E8,E8,E8],
+'├':[V1,V1,V1,'...#####',V1,V1,V1,V1],
+'┤':[V1,V1,V1,'####....',V1,V1,V1,V1],
+'┬':[E8,E8,E8,F8,V1,V1,V1,V1],
+'┴':[V1,V1,V1,F8,E8,E8,E8,E8],
+'┼':[V1,V1,V1,F8,V1,V1,V1,V1],
+'═':[E8,E8,F8,E8,E8,F8,E8,E8],
+'║':rep(V2,8),
+'╔':[E8,E8,'..######','..#.....','..#.....','..#..###',V2,V2],
+'╗':[E8,E8,'######..','.....#..','.....#..','###..#..',V2,V2],
+'╚':[V2,V2,'..#..###','..#.....','..#.....','..######',E8,E8],
+'╝':[V2,V2,'###..#..','.....#..','.....#..','######..',E8,E8],
+'╠':[V2,V2,'..#..###','..#.....','..#.....','..#..###',V2,V2],
+'╣':[V2,V2,'###..#..','.....#..','.....#..','###..#..',V2,V2],
+'╦':[E8,E8,F8,E8,E8,'###..###',V2,V2],
+'╩':[V2,V2,'###..###',E8,E8,F8,E8,E8],
+'╬':[V2,V2,'###..###',E8,E8,'###..###',V2,V2],
+'●':[E8,'..####..','.######.','.######.','.######.','.######.','..####..',E8],
+'○':[E8,'..####..','.#....#.','.#....#.','.#....#.','.#....#.','..####..',E8],
+'◘':[F8,F8,'###..###','##....##','##....##','###..###',F8,F8],
+'☼':['...#....','.#.#.#..','..###...','###.###.','..###...','.#.#.#..','...#....',E8],
+'♠':['...#....','..###...','.#####..','#######.','#######.','.#.#.#..','...#....','..###...'],
+'♣':['..###...','..###...','##.#.##.','#######.','##.#.##.','...#....','..###...',E8],
+'♥':['.##.##..','#######.','#######.','#######.','.#####..','..###...','...#....',E8],
+'♦':['...#....','..###...','.#####..','#######.','.#####..','..###...','...#....',E8],
+'⌂':['...#....','..#.#...','.#...#..','#.....#.','#.....#.','#.....#.','#######.',E8],
+'♪':['...###..','...#.##.','...#....','...#....','.###....','####....','.##.....',E8],
+'±':['...#....','...#....','#######.','...#....','...#....',E8,'#######.',E8],
+'§':['..####..','.#......','..###...','.#...#..','..###...','......#.','.####...',E8],
+'·':[E8,E8,E8,'...##...','...##...',E8,E8,E8],
+'≈':[E8,'.##.....','#..#...#','....###.',E8,'.##.....','#..#...#','....###.'] // wave, tiles seamlessly
+};
+
+/* ---------- Palettes: background + ink ramp (faint → bright) + accent ---------- */
+const PALETTES={
+  cga:{name:'CGA Classic',bg:'#000000',inks:['#0000AA','#5555FF','#00AAAA','#55FFFF','#FFFFFF'],acc:'#FF55FF'},
+  amber:{name:'Amber Terminal',bg:'#140A04',inks:['#3F2206','#6E3D0E','#A85E10','#E8981E','#FFCF73'],acc:'#FFF1CC'},
+  green:{name:'Green Phosphor',bg:'#040C06',inks:['#0D3316','#155A26','#1F8A3A','#2FC250','#56F777'],acc:'#DDFFDD'},
+  ega:{name:'EGA Meadow',bg:'#05081A',inks:['#10305A','#1A6B3A','#2FA84A','#55FF55','#FFFF55'],acc:'#FF5555'},
+  ice:{name:'Ice Cave',bg:'#0F151D',inks:['#1E3245','#2D5477','#4A86B5','#88C4E9','#D6F1FF'],acc:'#FFFFFF'},
+  violet:{name:'Violet Storm',bg:'#1A0F24',inks:['#3A2154','#5B3684','#8257B8','#AE8CE0','#DCCBF8'],acc:'#FFB547'},
+  paper:{name:'Paper & Ink',bg:'#F1E9D6',inks:['#D7CAAE','#A9987B','#6F614C','#3C3227','#1A140E'],acc:'#B23A2A'}
+};
+const SIZES={S:[48,27],M:[64,36],L:[96,54]};
+const FX={SHIM:1,FLICK:2,FLOWR:4,FLOWL:8,PULSE:16};
+const ACC=6; // level 6 = palette accent; levels 0..5 map onto the ink ramp
+
+/* ---------- Grid + helpers ---------- */
+function Grid(w,h){this.w=w;this.h=h;const n=w*h;this.ch=new Array(n).fill(' ');this.lv=new Int8Array(n);this.fx=new Uint8Array(n);this.ph=new Uint8Array(n);}
+Grid.prototype.set=function(x,y,ch,lv,fx,ph){if(x<0||y<0||x>=this.w||y>=this.h)return;const i=y*this.w+x;this.ch[i]=ch;this.lv[i]=lv;this.fx[i]=fx||0;this.ph[i]=(ph||0)&255;};
+Grid.prototype.get=function(x,y){return(x<0||y<0||x>=this.w||y>=this.h)?' ':this.ch[y*this.w+x];};
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+function edgeF(x,y,w,h,k){const d=Math.min(x,w-1-x,y,h-1-y);const r=Math.max(2,Math.min(w,h)*(k||0.2));const t=clamp(d/r,0,1);return t*t*(3-2*t);}
+function fade(lv,f){return lv>=ACC?lv:Math.max(0,Math.round(lv*f));}
+function frame(g,style,lv,inset){
+  inset=inset||0;const s=style==='double'?['╔','╗','╚','╝','═','║']:['┌','┐','└','┘','─','│'];
+  const x0=inset,y0=inset,x1=g.w-1-inset,y1=g.h-1-inset;
+  for(let x=x0+1;x<x1;x++){g.set(x,y0,s[4],lv);g.set(x,y1,s[4],lv);}
+  for(let y=y0+1;y<y1;y++){g.set(x0,y,s[5],lv);g.set(x1,y,s[5],lv);}
+  g.set(x0,y0,s[0],lv);g.set(x1,y0,s[1],lv);g.set(x0,y1,s[2],lv);g.set(x1,y1,s[3],lv);
+}
+function makeNoise(rng){const S=64,t=new Float32Array(S*S);for(let i=0;i<t.length;i++)t[i]=rng();
+  const a=(x,y)=>t[(((y%S)+S)%S)*S+(((x%S)+S)%S)];const sm=k=>k*k*(3-2*k);
+  return(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),u=sm(x-xi),v=sm(y-yi);const p=a(xi,yi)+(a(xi+1,yi)-a(xi,yi))*u,q=a(xi,yi+1)+(a(xi+1,yi+1)-a(xi,yi+1))*u;return p+(q-p)*v;};}
+function fbm(n,x,y,oct){let s=0,a=1,f=1,nm=0;for(let o=0;o<oct;o++){s+=a*n(x*f+o*17.3,y*f+o*9.1);nm+=a;a*=.5;f*=2;}return s/nm;}
+const fold1=(x,n)=>x<n/2?Math.floor((n-1)/2)-x:x-Math.floor(n/2); // mirror index from centre
+const BOX2={5:'║',10:'═',6:'╔',12:'╗',3:'╚',9:'╝',7:'╠',13:'╣',14:'╦',11:'╩',15:'╬'};
+
+/* ---------- Weavers ---------- */
+const WEAVERS={};
+
+// 1. KALEIDOSCOPE GARDEN — eden growth in a folded lattice, mirrored out
+WEAVERS.garden={name:'Kaleidoscope Garden',sym:true,generate(rng,W,H,o){
+  const g=new Grid(W,H),sym=o.sym||'quad',hw=Math.ceil(W/2),hh=Math.ceil(H/2);
+  let LW,LH,oy,fold;
+  if(sym==='bilateral'){LW=hw;LH=H;oy=Math.round((H-1)/2);fold=(x,y)=>[fold1(x,W),y];}
+  else if(sym==='quad'){LW=hw;LH=hh;oy=0;fold=(x,y)=>[fold1(x,W),fold1(y,H)];}
+  else{LW=hw;LH=hw;oy=0;fold=(x,y)=>{const a=fold1(x,W),b=fold1(y,H);return a>=b?[a,b]:[b,a];};}
+  const rx=hw-2.5,ry=hh-2.5;
+  const nd=sym==='kaleido'?(a,b)=>Math.hypot(a,b)/ry:(a,b)=>Math.hypot(a/rx,(b-oy)/ry);
+  const n=LW*LH,ord=new Int32Array(n).fill(-1),inF=new Uint8Array(n),front=[];
+  let count=0;const target=Math.floor(n*rng.range(0.4,0.64)),lace=rng.range(0.1,0.45);
+  const push=(a,b)=>{if(a<0||b<0||a>=LW||b>=LH)return;if(sym==='kaleido'&&b>a)return;const i=b*LW+a;if(ord[i]>=0||inF[i])return;inF[i]=1;front.push(i);};
+  const grow=i=>{ord[i]=count++;const a=i%LW,b=(i/LW)|0;push(a+1,b);push(a-1,b);push(a,b+1);push(a,b-1);};
+  const nb=(a,b)=>{let c=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const aa=Math.abs(a+dx),bb=sym==='bilateral'?b+dy:Math.abs(b+dy);if(aa<LW&&bb>=0&&bb<LH&&ord[bb*LW+aa]>=0)c++;}return c;};
+  grow(oy*LW);
+  let guard=n*40;
+  while(front.length&&count<target&&guard-->0){
+    const k=rng.int(front.length),i=front[k];front[k]=front[front.length-1];front.pop();inF[i]=0;
+    const a=i%LW,b=(i/LW)|0,d=nd(a,b);if(d>=1)continue;
+    const c=nb(a,b),p=(1-Math.pow(d,2.4))*(0.22+0.12*c)+(c>=5?0.35:0);
+    if(count<14||rng()<p)grow(i);else if(rng()>lace*count/target||front.length<4){inF[i]=1;front.push(i);}
+  }
+  const metric=rng.pick(['diamond','circle','square']),bw=rng.pick([1,2,2,3]);
+  const motifs=rng.shuffle(['♦','♠','♥','●','♣','○']).slice(0,3),shades=['▒','░'];
+  const seq=[];const len=rng.between(3,5);for(let k=0;k<len;k++)seq.push(k%2===0?motifs[(k/2)%3]:shades[rng.int(2)]);
+  const accentRing=rng.between(2,5);
+  const dist=(a,b)=>{const dy=Math.abs(b-oy);return metric==='diamond'?a+dy:metric==='circle'?Math.round(Math.hypot(a,dy)):Math.max(a,dy);};
+  const edgeCells=[];
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+    const [a,b]=fold(x,y);if(a>=LW||b>=LH)continue;const i=b*LW+a;if(ord[i]<0)continue;
+    const dd=dist(a,b),band=Math.floor(dd/bw),ch=seq[band%seq.length],shade=ch==='▒'||ch==='░';
+    let lv=Math.round(5-nd(a,b)*3.4)-(shade?1:0);lv=fade(clamp(lv,0,5),0.45+0.55*edgeF(x,y,W,H,0.12));
+    let fx=shade?0:FX.SHIM;
+    if(!shade&&(dd===0||band===accentRing))lv=ACC;
+    g.set(x,y,ch,lv,fx,band*5);
+    if(ord[i]>count*0.8)edgeCells.push([x,y]);
+  }
+  frame(g,'double',2,0);
+  const sparks=[];
+  if(edgeCells.length&&rng.chance(0.7)){const k=rng.between(3,7);for(let j=0;j<k;j++){const [x,y]=rng.pick(edgeCells);sparks.push({x,y,dir:-1,life:rng.between(14,26),period:rng.between(40,90),off:rng.int(90),lv:4,sway:1.5});}}
+  return{grid:g,sparks};
+}};
+
+// 2. CIRCUIT RUINS — walkers lay double-line traces from a core, over ruin patches
+WEAVERS.circuit={name:'Circuit Ruins',generate(rng,W,H){
+  const g=new Grid(W,H),n=W*H,conn=new Uint8Array(n),occ=new Uint8Array(n),step=new Uint16Array(n);
+  const DX={1:0,2:1,4:0,8:-1},DY={1:-1,2:0,4:1,8:0},OPP={1:4,2:8,4:1,8:2},TL={1:8,8:4,4:2,2:1},TR={1:2,2:4,4:8,8:1};
+  const inside=(x,y)=>x>=3&&y>=2&&x<W-3&&y<H-2;
+  const cx=W>>1,cy=H>>1,core=cy*W+cx;occ[core]=1;
+  const walkers=[],dirs=rng.shuffle([1,2,4,8]),nCore=rng.between(2,4);
+  for(let k=0;k<nCore;k++)walkers.push({x:cx,y:cy,d:dirs[k],life:rng.between(14,Math.max(20,W>>1)),st:0});
+  const extra=rng.between(1,3)+(W>64?2:0);
+  for(let k=0;k<extra;k++){const x=rng.between(5,W-6),y=rng.between(4,H-5),i=y*W+x;if(occ[i])continue;occ[i]=1;walkers.push({x,y,d:rng.pick([1,2,4,8]),life:rng.between(10,30),st:0});}
+  let total=0;const cap=Math.floor(n*0.14);
+  while(walkers.length&&total<cap){
+    const w=walkers.shift();let x=w.x,y=w.y,d=w.d,life=w.life,run=0,st=w.st;
+    for(;;){
+      const nx=x+DX[d],ny=y+DY[d],ni=ny*W+nx,ci=y*W+x;
+      if(!inside(nx,ny))break;
+      if(occ[ni]){if(rng.chance(0.7)){conn[ci]|=d;conn[ni]|=OPP[d];}break;}
+      conn[ci]|=d;conn[ni]|=OPP[d];occ[ni]=1;step[ni]=++st;x=nx;y=ny;total++;run++;
+      if(--life<=0)break;
+      if(run>=2&&rng.chance(0.16)){d=rng.chance(0.5)?TL[d]:TR[d];run=0;}
+      else if(run>=1&&walkers.length<14&&rng.chance(0.07))walkers.push({x,y,d:rng.chance(0.5)?TL[d]:TR[d],life:rng.between(6,24),st});
+    }
+  }
+  const noise=makeNoise(rng),ns=rng.range(0.12,0.2);
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+    const i=y*W+x;if(occ[i])continue;
+    const v=fbm(noise,x*ns,y*ns*1.3,2)*edgeF(x,y,W,H,0.3);
+    if(v>0.55)g.set(x,y,'▒',1);else if(v>0.47)g.set(x,y,'░',0);
+  }
+  const maxd=Math.hypot(W/2,H/2);
+  for(let i=0;i<n;i++){
+    if(!occ[i]||i===core)continue;const x=i%W,y=(i/W)|0,c=conn[i];
+    const bits=(c&1)+((c>>1)&1)+((c>>2)&1)+((c>>3)&1);
+    if(bits<=1){
+      if(rng.chance(0.22))g.set(x,y,rng.pick(['⌂','§']),ACC,FX.FLICK,step[i]);
+      else g.set(x,y,'●',5,FX.SHIM,step[i]*3);
+    }else{
+      const lv=fade(2+Math.round(2*(1-Math.hypot(x-cx,y-cy)/maxd)),0.5+0.5*edgeF(x,y,W,H,0.2));
+      g.set(x,y,BOX2[c],Math.max(1,lv),FX.PULSE,step[i]);
+    }
+  }
+  g.set(cx,cy,'◘',ACC,FX.SHIM,0);
+  frame(g,'single',1,0);
+  return{grid:g,sparks:[]};
+}};
+
+// 3. HORIZON — composed bands: sky, sun/moon, clouds, mountains, tree line, water
+WEAVERS.horizon={name:'Horizon',generate(rng,W,H){
+  const g=new Grid(W,H),noise=makeNoise(rng),night=rng.chance(0.35);
+  const hy=Math.round(H*rng.range(0.56,0.64)),peakAt=rng.range(0.25,0.75);
+  const farAmp=hy*rng.range(0.38,0.6),nearAmp=hy*rng.range(0.15,0.28),fo=rng.range(0,50),no=rng.range(50,100);
+  const farR=[],nearR=[];
+  for(let x=0;x<W;x++){
+    const bias=1-0.55*Math.abs(x/W-peakAt);
+    const hf=farAmp*bias*(0.35+0.9*(fbm(noise,x*0.07+fo,fo,3)-0.25));
+    const hn=nearAmp*2.4*(fbm(noise,x*0.11+no,no,3)-0.42);
+    farR[x]=Math.round((hy-Math.max(0,hf))*2)/2;nearR[x]=Math.round((hy-Math.max(0,hn))*2)/2;
+  }
+  const sx=Math.round(W*rng.range(0.22,0.78));
+  const sy=clamp(Math.min(Math.round(hy*rng.range(0.22,0.5)),Math.floor(farR[sx])-2),2,hy-2);
+  const bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  for(let y=1;y<hy;y++)for(let x=1;x<W-1;x++){
+    const t=y/hy,dist=Math.hypot(x-sx,y-sy),glow=Math.max(0,1-dist/(H*0.45));
+    let v=(night?0.12+0.42*t:0.22+0.55*t)*0.8+glow*(night?0.32:0.55);
+    v*=0.55+0.45*edgeF(x,y,W,H,0.2);
+    const th=(bayer[(y&3)*4+(x&3)]+0.5)/16,k=Math.floor(v*2.6+(th-0.5)*0.9);
+    if(k<=0)continue;
+    g.set(x,y,k===1?'░':'▒',clamp(Math.round(v*5)-1,0,4));
+  }
+  if(rng.chance(0.55)){const nc=rng.between(1,3);for(let c=0;c<nc;c++){
+    const cy=rng.between(2,Math.max(3,Math.floor(hy*0.45))),c0=rng.between(2,W-14),len=rng.between(6,Math.min(16,W-c0-3)),lv=night?2:3;
+    for(let x=c0;x<c0+len;x++){if(y0ok(x,cy))g.set(x,cy,'▀',lv);}
+    for(let x=c0+2;x<c0+len-2;x++){if(y0ok(x,cy-1))g.set(x,cy-1,'▄',lv);}
+  }}
+  function y0ok(x,y){return y>=1&&y<Math.floor(farR[x])&&!(x===sx&&y===sy);}
+  const ridge=(R,body,top)=>{for(let x=1;x<W-1;x++){const r=R[x];if(r>=hy)continue;const e=0.55+0.45*edgeF(x,hy,W,H,0.15);
+    for(let y=Math.max(1,Math.floor(r));y<hy;y++){const ch=(y+0.5===r)?'▄':'█';g.set(x,y,ch,fade(y===Math.floor(r)?top:body,e));}}};
+  ridge(farR,1,2);ridge(nearR,2,3);
+  if(night)g.set(sx,sy,'●',5,FX.SHIM,0);else g.set(sx,sy,'☼',ACC,FX.FLICK,0);
+  for(let x=1;x<W-1;x++){
+    const tn=fbm(noise,x*0.25+50,7,2),e=edgeF(x,hy,W,H,0.12);
+    if(tn>0.42&&rng.chance(0.4+0.5*e))g.set(x,hy,'♠',tn>0.58?3:2);
+    if(tn>0.6&&rng.chance(0.55*e))g.set(x,hy-1,'♠',2);
+  }
+  if(rng.chance(0.75)){const hx=clamp(Math.round(W*rng.range(0.3,0.7)),3,W-4);g.set(hx,hy,'⌂',ACC,FX.FLICK,0);
+    if(rng.chance(0.5))g.set(hx+(rng.chance(0.5)?2:-2),hy,'⌂',2);}
+  const depthMax=H-2-hy;
+  for(let y=hy+1;y<H-1;y++){
+    const depth=(y-hy)/Math.max(1,depthMax),reflW=0.6+depth*2.6+rng()*1.2,dirFx=(y&1)?FX.FLOWR:FX.FLOWL,ph=(y*3)&7;
+    for(let x=1;x<W-1;x++){
+      const e=edgeF(x,y,W,H,0.2);
+      if(Math.abs(x-sx)<=reflW){const lv=night?4:(depth<0.35?ACC:5);g.set(x,y,'≈',lv,dirFx|FX.SHIM,ph);continue;}
+      if(rng()>0.5+0.45*e)continue;
+      g.set(x,y,'≈',clamp(Math.round((1-depth)*3*e+(depth<0.2?1:0)),0,4),dirFx,ph);
+    }
+  }
+  frame(g,'single',1,0);
+  const sparks=[];
+  if(night){const k=rng.between(4,8);for(let j=0;j<k;j++)sparks.push({x:rng.between(3,W-4),y:hy-1,dir:-1,life:rng.between(10,22),period:rng.between(30,70),off:rng.int(70),lv:ACC,sway:2});}
+  return{grid:g,sparks};
+}};
+
+// 4. THE DEEP — CA cave, a wandering path, flickering torches, shade vignette
+WEAVERS.deep={name:'The Deep',generate(rng,W,H){
+  const g=new Grid(W,H),n=W*H;let wall=new Uint8Array(n);const path=new Uint8Array(n);
+  for(let i=0;i<n;i++){const x=i%W,y=(i/W)|0;wall[i]=(x<1||y<1||x>W-2||y>H-2)?1:(rng()<0.47?1:0);}
+  let x=(W>>1)+rng.between(-Math.floor(W/6),Math.floor(W/6)),y=0,mom=rng.pick([-1,1]);
+  while(y<H){path[y*W+x]=1;
+    if(rng()<0.55)y++;else{if(rng()<0.25)mom=-mom;if(x<W*0.22)mom=1;if(x>W*0.78)mom=-1;x=clamp(x+mom,3,W-4);}}
+  for(let i=0;i<n;i++)if(path[i]){const px=i%W,py=(i/W)|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(rng()<0.5){const xx=px+dx,yy=py+dy;if(xx>0&&yy>0&&xx<W-1&&yy<H-1)wall[yy*W+xx]=0;}}}
+  for(let it=0;it<5;it++){const nx=new Uint8Array(wall);
+    for(let yy=1;yy<H-1;yy++)for(let xx=1;xx<W-1;xx++){let c=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(dx||dy)c+=wall[(yy+dy)*W+xx+dx];}
+      const i=yy*W+xx;nx[i]=(c>=5||(it<2&&c<=1))?1:0;}
+    for(let i=0;i<n;i++)if(path[i])nx[i]=0;wall=nx;}
+  const dist=new Int16Array(n).fill(99),q=[];
+  for(let i=0;i<n;i++)if(!wall[i]){dist[i]=0;q.push(i);}
+  for(let h=0;h<q.length;h++){const i=q[h],ix=i%W,iy=(i/W)|0;for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=ix+dx,yy=iy+dy;if(xx<0||yy<0||xx>=W||yy>=H)continue;const j=yy*W+xx;if(dist[j]>dist[i]+1){dist[j]=dist[i]+1;q.push(j);}}}
+  const nearPath=(ix,iy,r)=>{for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const xx=ix+dx,yy=iy+dy;if(xx>=0&&yy>=0&&xx<W&&yy<H&&path[yy*W+xx])return true;}return false;};
+  const cand=[];for(let i=0;i<n;i++){const ix=i%W,iy=(i/W)|0;if(wall[i]&&dist[i]===1&&ix>2&&iy>2&&ix<W-3&&iy<H-3&&nearPath(ix,iy,3))cand.push(i);}
+  const torches=[],want=rng.between(3,3+Math.floor(n/700));
+  for(const i of rng.shuffle(cand)){if(torches.length>=want)break;const ix=i%W,iy=(i/W)|0;if(torches.every(t=>Math.max(Math.abs(t%W-ix),Math.abs(((t/W)|0)-iy))>=7))torches.push(i);}
+  const light=new Float32Array(n);
+  for(const t of torches){const tx=t%W,ty=(t/W)|0;for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const xx=tx+dx,yy=ty+dy;if(xx<0||yy<0||xx>=W||yy>=H)continue;light[yy*W+xx]+=Math.max(0,1-Math.hypot(dx,dy)/5)*2.4;}}
+  const gemC=[];for(let i=0;i<n;i++)if(wall[i]&&dist[i]===1&&light[i]<0.2)gemC.push(i);
+  const gems=new Set(rng.shuffle(gemC).slice(0,rng.between(2,5)));
+  for(let i=0;i<n;i++){const ix=i%W,iy=(i/W)|0,vig=0.2+0.8*edgeF(ix,iy,W,H,0.28);
+    let ch=' ',base=0;
+    if(wall[i]){const d=dist[i];if(d===1){ch='▓';base=3;}else if(d===2){ch='▒';base=2;}else if(d===3){ch='░';base=1;}}
+    else if(path[i]){ch='·';base=2;}
+    if(ch===' ')continue;
+    const lv=clamp(Math.round((base+light[i])*vig),0,5);
+    if(lv===0&&vig<0.45)continue;
+    g.set(ix,iy,ch,lv);
+  }
+  for(const i of gems)g.set(i%W,(i/W)|0,'♦',4,FX.SHIM,rng.int(255));
+  const sparks=[];
+  for(const t of torches){g.set(t%W,(t/W)|0,'●',ACC,FX.FLICK,0);sparks.push({x:t%W,y:(t/W)|0,dir:-1,life:rng.between(8,14),period:rng.between(18,34),off:rng.int(34),lv:ACC,sway:1});}
+  return{grid:g,sparks};
+}};
+
+// 5. TAPESTRY — symmetric value-noise field through the shade ramp, banded, drifting
+WEAVERS.tapestry={name:'Tapestry',generate(rng,W,H){
+  const g=new Grid(W,H),noise=makeNoise(rng),sc=rng.range(0.07,0.12),bands=rng.between(3,5),quad=rng.chance(0.5),m=rng.range(0.25,0.5);
+  const drift=rng.chance(0.65),ddx=rng.pick([-1,1]),ddy=rng.pick([-1,1]);
+  const lvSeq=rng.pick([[1,3,5,2,4],[2,4,1,5,3],[1,2,4,5,3],[3,1,4,2,5]]),ramp=['░','▒','▓','█'];
+  const cx=(W-1)/2,cy=(H-1)/2,st={off:0};
+  const paint=()=>{
+    for(let y=2;y<H-2;y++)for(let x=2;x<W-2;x++){
+      const a=fold1(x,W),b=quad?fold1(y,H):y;
+      let v=fbm(noise,a*sc+st.off*ddx,b*sc*1.15+st.off*ddy,3);
+      const r=Math.hypot((x-cx)/(W/2),(y-cy)/(H/2));
+      v=clamp(v*(1-m)+m*(1-r*0.9),0,0.999);
+      const qv=v*bands,band=Math.floor(qv),f=qv-band;
+      g.set(x,y,ramp[Math.min(3,Math.floor(f*4))],lvSeq[band%lvSeq.length]);
+    }
+    const mx=Math.floor(cx),my=Math.round(cy);
+    g.set(mx,my,'♦',ACC,FX.SHIM,0);g.set(W-1-mx,my,'♦',ACC,FX.SHIM,0);
+  };
+  paint();frame(g,'double',3,0);
+  return{grid:g,sparks:[],step(tick){if(drift&&tick%3===0){st.off+=0.06;paint();}}};
+}};
+
+// 6. LIFE BLOOM — Conway's Life from a symmetric starter, trails decay ▓▒░, reseeds itself
+WEAVERS.life={name:'Life Bloom',generate(rng,W,H){
+  const g=new Grid(W,H),n=W*H,x0=2,y0=2,x1=W-3,y1=H-3;
+  let alive=new Uint8Array(n),nxt=new Uint8Array(n);const aAge=new Uint16Array(n),dAge=new Uint8Array(n).fill(255);
+  let hist=[],hold=-1,gen=0;
+  const mark=(x,y)=>{if(x<x0||y<y0||x>x1||y>y1)return;const i=y*W+x;alive[i]=1;aAge[i]=0;dAge[i]=255;};
+  const seed=()=>{
+    for(let i=0;i<n;i++)if(alive[i]){alive[i]=0;dAge[i]=1;}
+    const pw=rng.between(3,8),ph=rng.between(3,6),dens=rng.range(0.35,0.55),ox=rng.between(0,3),oy=rng.between(0,2);
+    const cx=Math.floor((W-1)/2),cy=Math.floor((H-1)/2);
+    for(let j=0;j<ph;j++)for(let i=0;i<pw;i++)if(rng()<dens){const x=cx-ox-i,y=cy-oy-j;mark(x,y);mark(W-1-x,y);mark(x,H-1-y);mark(W-1-x,H-1-y);}
+    hist=[];hold=-1;gen=0;
+  };
+  const stepLife=()=>{
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){let c=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(dx||dy)c+=alive[(y+dy)*W+x+dx];}
+      const i=y*W+x;nxt[i]=(c===3||(alive[i]&&c===2))?1:0;}
+    let h=2166136261,pop=0;
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=y*W+x;
+      if(nxt[i]){aAge[i]=alive[i]?Math.min(aAge[i]+1,999):0;dAge[i]=255;pop++;h^=i;h=Math.imul(h,16777619);}
+      else if(alive[i])dAge[i]=1;else if(dAge[i]<255)dAge[i]=dAge[i]>=8?255:dAge[i]+1;}
+    const t=alive;alive=nxt;nxt=t;gen++;
+    if(hold<0){if(pop===0||hist.includes(h)||gen>700)hold=pop===0?4:30;hist.push(h);if(hist.length>40)hist.shift();}
+    else if(--hold<=0)seed();
+  };
+  const paint=()=>{
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=y*W+x,e=0.45+0.55*edgeF(x,y,W,H,0.12);
+      if(alive[i]){const lv=aAge[i]===0?ACC:aAge[i]<4?5:4;g.set(x,y,'█',fade(lv,e));}
+      else if(dAge[i]<255){const d=dAge[i];g.set(x,y,d<=1?'▓':d<=3?'▒':'░',fade(d<=1?3:d<=3?2:d<=5?1:0,e));}
+      else g.set(x,y,' ',0);}
+  };
+  seed();for(let k=0;k<14;k++)stepLife();paint();frame(g,'single',1,0);
+  return{grid:g,sparks:[],step(tick){if(tick%2)return;stepLife();paint();}};
+}};
+
+const WIDS=Object.keys(WEAVERS),PIDS=Object.keys(PALETTES),SYMS=['bilateral','quad','kaleido'];
+function generatePiece(s){const [W,H]=SIZES[s.size]||SIZES.M;return WEAVERS[s.weaver].generate(makeRng(s.seed),W,H,{sym:s.sym});}
+function asText(p){const g=p.grid,out=[];for(let y=0;y<g.h;y++){let s='';for(let x=0;x<g.w;x++)s+=g.ch[y*g.w+x];out.push(s.replace(/\s+$/,''));}return out.join('\n');}
+// </engine>
+
+/* ---------- Renderer: sprites cached per glyph+colour+scale+variant; ticks only redraw tiles ---------- */
+const spriteCache=new Map();
+function sprite(ch,color,scale,variant){
+  const key=ch+color+scale+'|'+variant;let s=spriteCache.get(key);if(s)return s;
+  const map=GLYPHS[ch];s=document.createElement('canvas');s.width=s.height=8*scale;const x=s.getContext('2d');x.fillStyle=color;
+  for(let r=0;r<8;r++){const row=map[r];for(let k=0;k<8;k++)if(row.charCodeAt((k+variant)&7)===35)x.fillRect(k*scale,r*scale,scale,scale);}
+  spriteCache.set(key,s);return s;
+}
+function inkColor(pal,lv){if(lv>=ACC)return pal.acc;const n=pal.inks.length;return pal.inks[Math.round(clamp(lv,0,5)*(n-1)/5)];}
+function render(ctx,piece,pal,scale,tick,anim){
+  const g=piece.grid,T=8*scale,W=g.w,t2=tick>>1;
+  ctx.imageSmoothingEnabled=false;ctx.fillStyle=pal.bg;ctx.fillRect(0,0,g.w*T,g.h*T);
+  for(let i=0;i<g.ch.length;i++){
+    const ch=g.ch[i];if(ch===' ')continue;
+    let lv=g.lv[i],v=0;const f=g.fx[i];
+    if(anim&&f){const ph=g.ph[i],isAcc=lv>=ACC;
+      if(f&FX.SHIM){const s=Math.sin(tick*0.11+ph*0.35);if(isAcc){if(s<-0.7)lv=5;}else if(s>0.6)lv++;else if(s<-0.6)lv--;}
+      if(f&FX.FLICK){const r=h2(i,t2);if(isAcc){if(r<0.28)lv=5;}else if(r<0.3)lv--;else if(r>0.8)lv++;}
+      if(!isAcc)lv=clamp(lv,0,5);
+      if(f&FX.PULSE){const p=((t2-ph)%28+28)%28;if(p===0)lv+=2;else if(p===1)lv+=1;}
+      if(f&FX.FLOWR)v=(8-((t2+ph)&7))&7;else if(f&FX.FLOWL)v=(t2+ph)&7;
+    }
+    ctx.drawImage(sprite(ch,inkColor(pal,lv),scale,v),(i%W)*T,((i/W)|0)*T);
+  }
+  if(anim&&piece.sparks)for(const s of piece.sparks){
+    const age=(tick+s.off)%s.period;if(age>=s.life)continue;
+    const px=s.x*8+3+Math.round(Math.sin((age+s.off)*0.45)*s.sway),py=s.y*8+3+s.dir*age;
+    const lv=s.lv>=ACC?(age<s.life*0.6?ACC:5):Math.max(0,s.lv-Math.floor(age*3/s.life));
+    ctx.fillStyle=inkColor(pal,lv);ctx.fillRect(px*scale,py*scale,scale,scale);
+  }
+}
+
+/* ---------- App ---------- */
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d'),stage=$('stage'),mainEl=$('main'),bar=$('bar'),foot=$('foot'),strip=$('strip');
+const mq=matchMedia('(prefers-reduced-motion: reduce)');let reduced=mq.matches;
+const state={weaver:'garden',palette:'violet',seed:'',size:'M',sym:'quad',animate:true,speed:1};
+let piece=null,tick=0,timer=null;
+const randSeed=()=>Math.random().toString(36).slice(2,8);
+
+for(const id of WIDS)$('weaver').add(new Option(WEAVERS[id].name,id));
+for(const id of PIDS)$('palette').add(new Option(PALETTES[id].name,id));
+
+function running(){return state.animate&&!reduced&&!document.hidden;}
+function draw(){const a=running();render(ctx,piece,PALETTES[state.palette],2,tick,a);cv.style.filter=a?`brightness(${(1+0.05*Math.sin(tick*0.04)).toFixed(3)})`:'';}
+function schedule(){clearTimeout(timer);timer=null;if(running())timer=setTimeout(loop,90/state.speed);}
+function loop(){tick++;if(piece.step)piece.step(tick);draw();timer=setTimeout(loop,90/state.speed);}
+function regenerate(){
+  piece=generatePiece(state);const g=piece.grid;
+  if(cv.width!==g.w*16||cv.height!==g.h*16){cv.width=g.w*16;cv.height=g.h*16;}
+  tick=0;syncUI();draw();fit();schedule();
+  cv.setAttribute('aria-label',`${WEAVERS[state.weaver].name} in ${PALETTES[state.palette].name}, seed ${state.seed}`);
+}
+function syncUI(){
+  $('weaver').value=state.weaver;$('palette').value=state.palette;$('seed').value=state.seed;$('sym').value=state.sym;
+  for(const b of $('size').children)b.setAttribute('aria-pressed',String(b.dataset.v===state.size));
+  for(const b of $('speed').children){b.setAttribute('aria-pressed',String(+b.dataset.v===state.speed));b.disabled=reduced;}
+  const hasSym=!!WEAVERS[state.weaver].sym;$('sym').disabled=!hasSym;$('symCtl').classList.toggle('off',!hasSym);
+  const a=$('anim');a.disabled=reduced;a.setAttribute('aria-pressed',String(state.animate&&!reduced));
+  $('motionNote').hidden=!reduced;
+}
+function fit(){
+  const fs=document.fullscreenElement===stage,ar=cv.width/cv.height;let aw,ah;
+  if(fs){aw=innerWidth-24;ah=innerHeight-24;}
+  else{aw=document.documentElement.clientWidth-34;ah=Math.max(150,innerHeight-bar.offsetHeight-foot.offsetHeight-72);}
+  let w=Math.min(aw,ah*ar);if(w>=cv.width)w=cv.width*Math.floor(w/cv.width);
+  cv.style.width=Math.max(100,Math.floor(w))+'px';
+}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('on'),1400);}
+const HINT='glyphfield.hint.v1';
+function used(){const h=$('hint');if(!h.classList.contains('gone')){h.classList.add('gone');try{localStorage.setItem(HINT,'1');}catch(e){}}}
+try{if(localStorage.getItem(HINT))$('hint').classList.add('gone');}catch(e){}
+
+function newSeed(){state.seed=randSeed();regenerate();}
+function surprise(){state.weaver=WIDS[Math.floor(Math.random()*WIDS.length)];state.palette=PIDS[Math.floor(Math.random()*PIDS.length)];state.sym=SYMS[Math.floor(Math.random()*3)];state.seed=randSeed();regenerate();}
+function slug(s){return String(s).replace(/[^a-z0-9_-]+/gi,'_').slice(0,40)||'seed';}
+function savePng(){
+  const g=piece.grid,oc=document.createElement('canvas');oc.width=g.w*64;oc.height=g.h*64;
+  render(oc.getContext('2d'),piece,PALETTES[state.palette],8,tick,running());
+  oc.toBlob(b=>{if(!b){toast('save failed');return;}const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`glyphfield-${state.weaver}-${slug(state.seed)}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),3000);toast('saved png');},'image/png');
+}
+async function copyText(){
+  const t=asText(piece);
+  try{await navigator.clipboard.writeText(t);toast('copied as text');}
+  catch(e){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0;left:0;top:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('copied as text');}catch(_){toast('copy failed');}ta.remove();}
+}
+function toggleFs(){if(document.fullscreenElement)document.exitFullscreen();else if(stage.requestFullscreen)stage.requestFullscreen().catch(()=>toast('fullscreen unavailable'));}
+
+/* ---------- Gallery ---------- */
+const GKEY='glyphfield.gallery.v1',GCAP=24;
+function loadGal(){try{const a=JSON.parse(localStorage.getItem(GKEY)||'[]');return Array.isArray(a)?a.filter(e=>e&&WEAVERS[e.weaver]&&PALETTES[e.palette]&&SIZES[e.size]):[];}catch(e){return[];}}
+function saveGal(a){try{localStorage.setItem(GKEY,JSON.stringify(a));return true;}catch(e){return false;}}
+let gal=loadGal();
+function thumbOf(s){
+  const p=generatePiece(s),g=p.grid,oc=document.createElement('canvas');oc.width=g.w*8;oc.height=g.h*8;
+  render(oc.getContext('2d'),p,PALETTES[s.palette],1,0,false);
+  const t=document.createElement('canvas'),tw=200;t.width=tw;t.height=Math.round(tw*g.h/g.w);const tx=t.getContext('2d');tx.imageSmoothingQuality='high';tx.drawImage(oc,0,0,t.width,t.height);
+  return t.toDataURL('image/png');
+}
+function settingsOf(){return{seed:state.seed,weaver:state.weaver,palette:state.palette,size:state.size,sym:state.sym};}
+function keep(){
+  const e=settingsOf();e.thumb=thumbOf(e);e.t=Date.now();
+  gal.push(e);while(gal.length>GCAP)gal.shift();
+  while(!saveGal(gal)&&gal.length>1)gal.shift();
+  renderStrip();toast(`kept · ${gal.length}/${GCAP}`);strip.scrollLeft=0;
+}
+function todaySettings(){const d=new Date(),s=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,h=hashStr('today:'+s);
+  return{seed:s,weaver:WIDS[h%WIDS.length],palette:PIDS[(h>>>8)%PIDS.length],size:'M',sym:SYMS[(h>>>16)%3]};}
+const today=todaySettings();today.thumb=thumbOf(today);
+function restore(e){Object.assign(state,{seed:e.seed,weaver:e.weaver,palette:e.palette,size:e.size,sym:e.sym||'quad'});regenerate();}
+function renderStrip(){
+  strip.innerHTML='';
+  const items=[Object.assign({today:true},today),...gal.slice().reverse()];
+  for(const it of items){
+    const b=document.createElement('button');b.className='thumb'+(it.today?' today':'');b.setAttribute('role','listitem');
+    b.title=`${WEAVERS[it.weaver].name} · ${PALETTES[it.palette].name} · ${it.seed}`;
+    const img=new Image();img.src=it.thumb;img.alt='';const cap=document.createElement('span');cap.textContent=it.today?'Today':it.seed;
+    b.append(img,cap);b.onclick=()=>restore(it);strip.append(b);
+  }
+  if(!gal.length){const s=document.createElement('span');s.className='empty';s.textContent='keep pieces to collect them here';strip.append(s);}
+}
+
+/* ---------- Wiring ---------- */
+$('weaver').onchange=e=>{state.weaver=e.target.value;regenerate();};
+$('weaverDice').onclick=()=>{let w;do{w=WIDS[Math.floor(Math.random()*WIDS.length)];}while(w===state.weaver);state.weaver=w;regenerate();};
+$('palette').onchange=e=>{state.palette=e.target.value;draw();};
+$('seed').onchange=e=>{state.seed=e.target.value.trim()||randSeed();regenerate();};
+$('seedDice').onclick=newSeed;
+for(const b of $('size').children)b.onclick=()=>{state.size=b.dataset.v;regenerate();};
+$('sym').onchange=e=>{state.sym=e.target.value;regenerate();};
+$('anim').onclick=()=>{state.animate=!state.animate;syncUI();schedule();draw();};
+for(const b of $('speed').children)b.onclick=()=>{state.speed=+b.dataset.v;syncUI();schedule();};
+$('regen').onclick=newSeed;$('surprise').onclick=surprise;$('savePng').onclick=savePng;$('copyTxt').onclick=copyText;$('fs').onclick=toggleFs;$('keep').onclick=keep;
+addEventListener('keydown',e=>{
+  if(e.target.closest&&e.target.closest('input,select,textarea'))return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key.toLowerCase();
+  if(e.code==='Space'){e.preventDefault();newSeed();used();}
+  else if(k==='f'){toggleFs();used();}
+  else if(k==='k'){keep();used();}
+  else if(k==='c'){copyText();used();}
+  else if(k==='s'){savePng();used();}
+});
+addEventListener('resize',fit);
+document.addEventListener('fullscreenchange',fit);
+document.addEventListener('visibilitychange',()=>{schedule();draw();});
+const onMq=()=>{reduced=mq.matches;syncUI();schedule();draw();};
+if(mq.addEventListener)mq.addEventListener('change',onMq);else if(mq.addListener)mq.addListener(onMq);
+
+renderStrip();
+restore(today);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+</script>
+</body>
+</html>
