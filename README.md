@@ -1,6 +1,6 @@
 # Visualizations
 
-Nine visual generators and scenes in one repo, each in its own folder exactly as published:
+Ten visual generators and scenes in one repo, each in its own folder exactly as published:
 
 `heycristobal.com/visualizations/<folder>/`
 
@@ -19,6 +19,7 @@ Nine visual generators and scenes in one repo, each in its own folder exactly as
 | Soft Gradient | [soft-gradient-generator/](soft-gradient-generator/) | Blurred gradient backgrounds, downloadable as PNG. |
 | GLYPHFIELD | [glyphfield/](glyphfield/) | Seeded DOS-tile generative art: six seeded weavers (Kaleidoscope Garden, Circuit Ruins, Horizon, The Deep, Tapestry, Life Bloom), seven palettes, a ~90 ms DOS tick, PNG export at 4x and copy-as-text. |
 | Pixel Monster Creator | [pixel-monster-creator/](pixel-monster-creator/) | Generate cute, soft pixel monsters in the browser. |
+| Typographic Weather Loom | [typographic-weather-loom/](typographic-weather-loom/) | Weather rendered as woven typography. |
 
 ## Adding a project
 
