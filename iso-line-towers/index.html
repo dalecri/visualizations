@@ -16,6 +16,9 @@ body{background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:
 #stage{flex:1;min-height:0;display:flex;padding-block:64px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 #art{flex:1;min-width:0;min-height:0}
 #art svg{width:100%;height:100%;display:block}
+.plate,.plate:hover{color:var(--ink);background:var(--paper);text-align:left;cursor:pointer;font:inherit}
+.plate small{display:flex;justify-content:space-between;gap:14px}
+#lang b{color:var(--ink)}
 .plate{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));max-width:calc(100% - 32px);border:1px solid var(--ink);background:var(--paper);padding:6px 10px 7px;display:flex;flex-direction:column;gap:1px}
 .plate small{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
 .plate b{font-weight:700;font-size:13px;text-wrap:balance}
@@ -24,30 +27,55 @@ body{background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:
 button,select,input{font:inherit;color:var(--ink)}
 button,select{background:var(--paper);border:1px solid var(--ink);border-radius:0;padding:5px 9px;cursor:pointer;line-height:1.2}
 button:hover,button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-select:disabled{opacity:.35;cursor:default}
+select:disabled,button:disabled{opacity:.35;cursor:default}
+button:disabled:hover{background:var(--paper);color:var(--ink)}
+.pix{width:100%;height:100%;display:block;object-fit:contain;image-rendering:pixelated}
+#art .wf{stroke-dasharray:5 6;animation:flow 1.1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-22}}
+#art .fl{transform-box:fill-box;transform-origin:0 50%;animation:wave 1.4s ease-in-out infinite alternate}
+@keyframes wave{to{transform:scaleX(.8) skewY(5deg)}}
+#art .cat{cursor:pointer}
+#art .hop{animation:hop 2.8s ease-in-out infinite}
+@keyframes hop{0%,68%,100%{transform:none}78%{transform:translateY(-.24px)}88%{transform:translateY(0)}}
+#art .zz{animation:zz 2.4s ease-in-out infinite}
+@keyframes zz{50%{opacity:.2}}
+#bubble{position:fixed;z-index:5;transform:translate(-50%,-100%);background:var(--paper);color:var(--ink);border:1px solid var(--ink);padding:6px 10px 7px;max-width:220px;pointer-events:none}
+#bubble b{display:block;font-size:12px}#bubble span{font-size:10px;color:var(--mute)}
+#bubble::after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:var(--paper);border-right:1px solid var(--ink);border-bottom:1px solid var(--ink);transform:translateX(-50%) rotate(45deg)}
+.strip{display:flex;gap:8px;overflow-x:auto;border-top:1px solid var(--rule);background:var(--paper);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.strip button{flex:0 0 auto;width:92px;padding:4px 4px 5px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;border-color:var(--rule)}
+.strip button:hover,.strip button.cur{background:var(--paper);color:var(--ink);border-color:var(--ink)}
+.strip svg{width:82px;height:82px;display:block}
 .seg{display:inline-flex}.seg button+button{border-left:0}
 #seed{width:14ch;border:0;border-bottom:1px solid var(--ink);background:transparent;padding:4px 0;border-radius:0}
 label{display:inline-flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
 input[type=range]{accent-color:var(--ink);width:88px}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .push{margin-left:auto}
-#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 12px;font-size:11px;opacity:0;pointer-events:none;transition:opacity .2s}
+#art.build .e{animation:drop .5s cubic-bezier(.2,.9,.25,1) both;animation-delay:calc(var(--i)*55ms)}
+@keyframes drop{from{opacity:0;transform:translateY(-26px)}}
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:6px 12px;font-size:11px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 @media (max-width:560px){.push{margin-left:0}input[type=range]{width:72px}.bar{gap:8px 12px}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <main id="stage"><div id="art" aria-label="Isometric tower drawing" role="img"></div></main>
-<div class="plate"><small id="plateSeed">tower</small><b id="tname"></b></div>
+<button class="plate" id="plate" title="Switch name language"><small><span id="plateSeed">tower</span><span id="lang"></span></small><b id="tname"></b></button>
 <div id="toast" role="status"></div>
+<div id="bubble" role="status" hidden></div>
+<div id="recent" class="strip" hidden aria-label="Recent towers"></div>
 <nav class="bar" aria-label="Controls">
   <div class="grp"><input id="seed" aria-label="Seed" spellcheck="false" autocomplete="off"><button id="copy">Copy link</button></div>
   <button id="new">New tower</button>
   <label for="height">Height <input type="range" id="height" min="0" max="1" step="0.05" value="0.5"></label>
   <label for="chaos">Chaos <input type="range" id="chaos" min="0" max="1" step="0.05" value="0.35"></label>
-  <div class="seg" role="group" aria-label="Mode"><button id="mLine" aria-pressed="true">Linework</button><button id="mFill" aria-pressed="false">Flat fill</button></div>
+  <div class="seg" role="group" aria-label="Mode"><button id="mLine" aria-pressed="true">Linework</button><button id="mFill" aria-pressed="false">Flat fill</button><button id="mPix" aria-pressed="false">Pixel</button></div>
   <select id="pal" aria-label="Palette" disabled></select>
-  <div class="grp push"><button id="png">Export PNG</button><button id="svgx">Export SVG</button></div>
+  <div class="seg" role="group" aria-label="Scene"><button id="cats" aria-pressed="true">Cats</button><button id="sky" aria-pressed="true">Sky</button><button id="night" aria-pressed="false" disabled>Night</button><button id="spooky" aria-pressed="false">Spooky</button></div>
+  <button id="replay">Build</button>
+  <button id="recentBtn" aria-pressed="false" aria-controls="recent">Recent</button>
+  <div class="grp push"><button id="png">PNG</button><button id="svgx">SVG</button><button id="post">Post 4:5</button><button id="page">Colouring page</button></div>
 </nav>
 
 <script>
@@ -57,20 +85,24 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 function stream(seed,name){const r=mulberry32(xmur3(seed+'/'+name));return{f:r,int:n=>Math.floor(r()*n),range:(a,b)=>a+r()*(b-a),pick:a=>a[Math.floor(r()*a.length)],chance:p=>r()<p}}
 
 /* ---------- names ---------- */
-const ADJ=['Sunken','Hollow','Silent','Gilded','Drowned','Leaning','Winding','Pale','Lantern','Forgotten','Crooked','Salt','Upper','Ashen','Quiet','Patient'];
-const NOUN=['Belfry','Archive','Cistern','Observatory','Granary','Lighthouse','Aqueduct','Library','Reliquary','Mill','Bastion','Stair','Orrery','Rookery','Conservatory'];
-const ORD=['Ninth','Seventh','Last','First','Eleventh','Third','Twelfth','Fourth'];
+// [English, French masculine, French feminine]; nouns carry their French gender
+const ADJ=[['Sunken','englouti','engloutie'],['Hollow','creux','creuse'],['Silent','silencieux','silencieuse'],['Gilded','doré','dorée'],['Drowned','noyé','noyée'],['Leaning','penché','penchée'],['Winding','sinueux','sinueuse'],['Pale','pâle','pâle'],['Lantern','aux lanternes','aux lanternes'],['Forgotten','oublié','oubliée'],['Crooked','tordu','tordue'],['Salt','de sel','de sel'],['Upper','supérieur','supérieure'],['Ashen','cendré','cendrée'],['Quiet','paisible','paisible'],['Patient','patient','patiente']];
+const NOUN=[['Belfry','Beffroi','m'],['Archive','Archive','f'],['Cistern','Citerne','f'],['Observatory','Observatoire','m'],['Granary','Grenier','m'],['Lighthouse','Phare','m'],['Aqueduct','Aqueduc','m'],['Library','Bibliothèque','f'],['Reliquary','Reliquaire','m'],['Mill','Moulin','m'],['Bastion','Bastion','m'],['Stair','Escalier','m'],['Orrery','Planétaire','m'],['Rookery','Corbeautière','f'],['Conservatory','Conservatoire','m']];
+const ORD=[['Ninth','Neuvième','Neuvième'],['Seventh','Septième','Septième'],['Last','Dernier','Dernière'],['First','Premier','Première'],['Eleventh','Onzième','Onzième'],['Third','Troisième','Troisième'],['Twelfth','Douzième','Douzième'],['Fourth','Quatrième','Quatrième']];
 const SYL=['ve','lo','ra','mir','tha','sel','or','qua','zen','li','dor','an','is','eth','ka','mu','vel','ne','os','ty'];
 function towerName(seed){
   const N=stream(seed,'name');
   let pl='';const k=2+N.int(2);for(let i=0;i<k;i++)pl+=N.pick(SYL);pl=pl[0].toUpperCase()+pl.slice(1);
-  const a=N.pick(ADJ),n=N.pick(NOUN),o=N.pick(ORD);
-  return [`The ${a} ${n}`,`The ${n} of ${pl}`,`Tower of the ${o} ${n}`,`The ${a} Stair of ${pl}`,`${pl} ${n}`][N.int(5)];
+  const a=N.pick(ADJ),n=N.pick(NOUN),o=N.pick(ORD),p=N.int(5);
+  const V=/^[aeiouéèêh]/i,g=n[2]==='f'?2:1,art=w=>V.test(w)?"L'":g===2?'La ':'Le ',de=w=>V.test(w)?"d'":'de ';
+  const en=[`The ${a[0]} ${n[0]}`,`The ${n[0]} of ${pl}`,`Tower of the ${o[0]} ${n[0]}`,`The ${a[0]} Stair of ${pl}`,`${pl} ${n[0]}`][p];
+  const fr=[`${art(n[1])}${n[1]} ${a[g]}`,`${art(n[1])}${n[1]} ${de(pl)}${pl}`,`La Tour ${g===2?'de la':'du'} ${o[g]} ${n[1]}`,`L'Escalier ${a[1]} ${de(pl)}${pl}`,`${art(n[1])}${n[1]} ${pl}`][p];
+  return{en,fr};
 }
 
 /* ---------- the grammar ---------- */
 const FOOT=[[1,1],[2,1],[1,2],[2,2]];
-function generate(seed,height,chaos){
+function generate(seed,height,chaos,opt){
   const M=stream(seed,'mass'),T=stream(seed,'tops'),D=stream(seed,'detail'),W=stream(seed,'water');
   const P=5+M.int(2),OFF=3,G=P+2*OFF;
   const Hm=new Array(G*G).fill(0);
@@ -118,14 +150,15 @@ function generate(seed,height,chaos){
     let tm=true;for(let x=b.x0;x<b.x1;x++)for(let y=b.y0;y<b.y1;y++)if(hAt(x,y)!==b.z1)tm=false;
     if(!tm)continue;
     const w=b.x1-b.x0,d=b.y1-b.y0;
-    const t=b.kind==='cyl'?T.pick(['dome','cone','tank','cone','spire']):w===1&&d===1?T.pick(['spire','cone','dome','rail','tank']):w===2&&d===2?T.pick(['rail','dome','tank','rail','cone']):T.pick(['rail','rail','tank']);
+    const t=b.kind==='cyl'?T.pick(['dome','cone','tank','cone','spire']):w===1&&d===1?T.pick(['spire','cone','dome','rail','tank']):w===2&&d===2?T.pick(['rail','dome','tank','rail','cone']):T.pick(['rail','gable','gable','tank']);
     const r=b.kind==='cyl'?b.r:Math.min(w,d)/2*.8;
-    b.top={t,r,h:{rail:.3,dome:r*1.22+.3,cone:1,spire:2.2,tank:1.25}[t]};
+    b.top={t,r,h:{rail:.3,dome:r*1.22+.3,cone:1,spire:2.2,tank:1.25,gable:.6}[t]};
   }
   // flag on the highest top (by screen height)
   let fl=null,fy=1e9;for(const b of blocks)if(b.top){const y=(b.x0+b.x1+b.y0+b.y1)/4/2-(b.z1+b.top.h);if(y<fy){fy=y;fl=b}}
   if(fl)fl.top.flag=true;
   // bridges between stacks at a shared level
+  const covered=new Set();
   const nb=Math.min(4,Math.floor(chaos*3+M.f()*.9));
   if(nb>0){
     const cands=[],used=new Set();
@@ -147,6 +180,7 @@ function generate(seed,height,chaos){
       const br=c.ax?{x0:c.r+.25,x1:c.r+.75,y0:c.A.y1,y1:c.B.y0}:{x0:c.A.x1,x1:c.B.x0,y0:c.r+.25,y1:c.r+.75};
       Object.assign(br,{kind:'bridge',ax:c.ax,z0:c.L-.22,z1:c.L,ci:c.A.ci,det:[]});
       ents.push(br);
+      for(let x=Math.floor(br.x0);x<Math.ceil(br.x1);x++)for(let y=Math.floor(br.y0);y<Math.ceil(br.y1);y++)covered.add(x+','+y);
     }
   }
   // waterfalls: down a face to an exposed roof at the block's base
@@ -160,6 +194,21 @@ function generate(seed,height,chaos){
   for(let k=0;k<nw&&wc.length;k++){
     const c=wc.splice(W.int(wc.length),1)[0];if(c.b.fall){k--;continue}
     c.b.fall={f:c.f,u:c.u,ph:W.range(0,6.28),rip:2+W.int(2)};
+  }
+  // open roofs: where trees grow and cats sit
+  for(const b of blocks)if(b.fall){const u=Math.floor(b.fall.u);covered.add(b.fall.f==='r'?b.x1+','+(b.y0+u):(b.x0+u)+','+b.y1)}
+  const owners=[plinth,...blocks.filter(b=>b.kind==='box')],surf=[];
+  for(let x=-1;x<=P;x++)for(let y=-1;y<=P;y++){const h=hAt(x,y);if(h<1||h>=99||covered.has(x+','+y))continue;
+    const o=owners.find(e=>x>=e.x0&&x<e.x1&&y>=e.y0&&y<e.y1&&e.z1===h);if(o&&!(o.top&&o.top.t!=='rail'))surf.push({x,y,z:h})}
+  const Gd=stream(seed,'garden'),K=stream(seed,'cats');
+  const nt=Gd.int(4);
+  for(let i=0;i<nt&&surf.length;i++){const c=surf.splice(Gd.int(surf.length),1)[0],tt=Gd.pick(['round','cypress','round','pine']);
+    ents.push({kind:'tree',tt,x0:c.x+.22,x1:c.x+.78,y0:c.y+.22,y1:c.y+.78,z0:c.z,z1:c.z+(tt==='cypress'?1.5:1.3),ci:-1,det:[]})}
+  const low=surf.filter(c=>c.z<=2),up=surf.filter(c=>c.z>=3);
+  for(let i=0;i<4;i++){ // two cats downstairs, two upstairs
+    let pool=i<2?low:up;if(!pool.length)pool=i<2?up:low;if(!pool.length)break;
+    const c=pool.splice(K.int(pool.length),1)[0],cx=c.x+.32+K.f()*.36,cy=c.y+.32+K.f()*.36;
+    ents.push({kind:'cat',cat:i,dir:K.chance(.5)?1:-1,x0:cx-.16,x1:cx+.16,y0:cy-.16,y1:cy+.16,z0:c.z,z1:c.z+.7,ci:-1,det:[]});
   }
   // details
   for(const f of ['l','r']){const k=1+D.int(2);for(let i=0;i<k;i++){const lim=f==='r'?P-2.2:P-.6;plinth.det.push({t:'door',f,u:.6+D.f()*(lim-.6),a:.2,h:.66})}}
@@ -186,6 +235,11 @@ function generate(seed,height,chaos){
       }
     }
   }
+  if(opt&&opt.spooky){const Sp=stream(seed,'spooky'),pool=low.concat(up),np=2+Sp.int(2); // Hallowe'en pumpkins on the leftover open roofs
+    for(let i=0;i<np&&pool.length;i++){const c=pool.splice(Sp.int(pool.length),1)[0],cx=c.x+.3+Sp.f()*.4,cy=c.y+.3+Sp.f()*.4,sz=.8+Sp.f()*.4;
+      ents.push({kind:'pumpkin',sz,x0:cx-.17*sz,x1:cx+.17*sz,y0:cy-.17*sz,y1:cy+.17*sz,z0:c.z,z1:c.z+.35*sz,ci:-1,det:[]})}}
+  const Lg=stream(seed,'lights'); // which windows glow at night
+  for(const e of ents)for(const d of e.det)if(d.t==='w'||d.t==='cw'||d.t==='door')d.lit=Lg.chance(.42);
   return {seed,P,ents,order:paintOrder(ents)};
 }
 function makeStair(D,f,L,h,chaos){
@@ -234,8 +288,11 @@ const PAL={
   'Violet Storm':{paper:'#ece8f3',st:'#5a4e78',win:'#ffe29a',flag:'#ffe29a',c:['#6b4fa3','#8a6cc7','#4b3a7a','#b49ae0','#7d5fb8']},
   'Atelier Noir':{paper:'#eeebe6',st:'#5d5852',win:'#e8c46a',flag:'#c8423a',c:['#3a3632','#57524c','#78716a','#9a928a','#46413c']},
   'itsrito Greens':{paper:'#f0f5ec',st:'#9db08f',win:'#1f3d2a',flag:'#e3c25a',c:['#7fae7a','#4f8a5b','#a9cf9a','#2f6a45','#c3dcae']},
-  'Dusk Clay':{paper:'#f7efe7',st:'#b9a294',win:'#3e2a2a',flag:'#5c7fa3',c:['#c98b6b','#a8644d','#e0b293','#7a4a3d','#d9a48a']}
+  'Dusk Clay':{paper:'#f7efe7',st:'#b9a294',win:'#3e2a2a',flag:'#5c7fa3',c:['#c98b6b','#a8644d','#e0b293','#7a4a3d','#d9a48a']},
+  'Laurentian Fall':{paper:'#f8f1e6',st:'#a89884',win:'#2b2320',flag:'#2f5d50',leaf:'#c4562a',c:['#d9622b','#e8a23a','#b8432e','#f2c76e','#8c3b2a']},
+  'Blueprint':{paper:'#1f3f73',ink:'#e9f0fb',st:'#24477f',win:'#163059',flag:'#e9f0fb',leaf:'#2a5390',c:['#2a4f8c','#2d5596','#274a85','#305a9e','#2b528f']}
 };
+const CATC=['#f4ece2','#fdfcf9','#d9b67c','#c98a45'];
 function mix(a,b,t){const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));const A=p(a),B=p(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')}
 
 /* ---------- SVG drawing ---------- */
@@ -268,8 +325,8 @@ function cylBody(cx,cy,z0,z1,r,F){
 function archPts(e,f,u,a,v0,h){const pts=[fp(e,f,u-a,v0)],vs=v0+h-a;for(let k=0;k<=8;k++){const th=Math.PI-k*Math.PI/8;pts.push(fp(e,f,u+a*Math.cos(th),vs+a*Math.sin(th)))}pts.push(fp(e,f,u+a,v0));return pts}
 function cylPt(e,th,v){return P(e.cx+e.r*Math.cos(th),e.cy+e.r*Math.sin(th),e.z0+v)}
 
-function drawDetail(e,d,F){
-  const h=e.z1-e.z0;
+function drawDetail(e,d,F0){
+  const h=e.z1-e.z0,F=d.lit&&F0.lit?Object.assign({},F0,{win:F0.lit}):F0;
   switch(d.t){
     case'w':{const a=.07;if(d.arch)poly(archPts(e,d.f,d.u,a,d.v0,d.v1-d.v0),F.win,'d');
       else poly([fp(e,d.f,d.u-a,d.v0),fp(e,d.f,d.u+a,d.v0),fp(e,d.f,d.u+a,d.v1),fp(e,d.f,d.u-a,d.v1)],F.win,'d');break}
@@ -285,7 +342,7 @@ function drawDetail(e,d,F){
 }
 function drawFall(e,w){
   const h=e.z1-e.z0;
-  for(const s of[-.09,.09]){const pts=[];for(let k=0;k<=h*10;k++){const v=h-k/10;pts.push(fp(e,w.f,w.u+s+.035*Math.sin(v*9+w.ph+s*30),Math.max(0,v)))}line(pts)}
+  for(const s of[-.09,.09]){const pts=[];for(let k=0;k<=h*10;k++){const v=h-k/10;pts.push(fp(e,w.f,w.u+s+.035*Math.sin(v*9+w.ph+s*30),Math.max(0,v)))}line(pts,'d wf')}
   const c=w.f==='r'?P(e.x1+.36,e.y0+w.u,e.z0):P(e.x0+w.u,e.y1+.36,e.z0);
   for(let k=0;k<w.rip;k++){const rx=(.12+.11*k)*R2*U;ell(c,rx,rx/2,'none','d')}
 }
@@ -308,6 +365,25 @@ function drawTop(e,F){
   }else if(t.t==='cone'){cone(c,rx,1*U,F.left);apex=[c[0],c[1]-U]}
   else if(t.t==='spire'){const sr=Math.min(r,.3)*R2*U;cone(c,sr,2*U,F.left);apex=[c[0],c[1]-2*U-3];
     ell([c[0],c[1]-2*U],3,3,F.top,'d');apex=[c[0],c[1]-2*U-3]}
+  else if(t.t==='gable'){
+    const zr=z+.6,vent=[];
+    if(e.x1-e.x0>=e.y1-e.y0){
+      poly([P(e.x0,e.y0,z),P(e.x0,cy,zr),P(e.x0,e.y1,z)],F.left,'s');
+      poly([P(e.x0,e.y0,z),P(e.x1,e.y0,z),P(e.x1,cy,zr),P(e.x0,cy,zr)],F.right,'s');
+      poly([P(e.x0,cy,zr),P(e.x1,cy,zr),P(e.x1,e.y1,z),P(e.x0,e.y1,z)],F.top,'s');
+      poly([P(e.x1,e.y0,z),P(e.x1,cy,zr),P(e.x1,e.y1,z)],F.right,'s');
+      for(let k=0;k<12;k++){const a=k*Math.PI/6;vent.push(P(e.x1,cy+.08*Math.cos(a),z+.22+.08*Math.sin(a)))}
+      apex=P(e.x1-.25,cy,zr);
+    }else{
+      poly([P(e.x0,e.y0,z),P(cx,e.y0,zr),P(e.x1,e.y0,z)],F.right,'s');
+      poly([P(e.x0,e.y0,z),P(e.x0,e.y1,z),P(cx,e.y1,zr),P(cx,e.y0,zr)],F.left,'s');
+      poly([P(cx,e.y0,zr),P(cx,e.y1,zr),P(e.x1,e.y1,z),P(e.x1,e.y0,z)],F.top,'s');
+      poly([P(e.x0,e.y1,z),P(cx,e.y1,zr),P(e.x1,e.y1,z)],F.left,'s');
+      for(let k=0;k<12;k++){const a=k*Math.PI/6;vent.push(P(cx+.08*Math.cos(a),e.y1,z+.22+.08*Math.sin(a)))}
+      apex=P(cx,e.y1-.25,zr);
+    }
+    poly(vent,F.win,'d');
+  }
   else{ // water tank on legs
     const l=.22;for(const[a,b]of[[-l,-l],[l,-l],[-l,l],[l,l]])line([P(cx+a,cy+b,z),P(cx+a,cy+b,z+.5)]);
     line([P(cx+l,cy-l,z),P(cx+l,cy+l,z+.5)]);line([P(cx+l,cy+l,z),P(cx+l,cy-l,z+.5)]);
@@ -315,7 +391,7 @@ function drawTop(e,F){
     cylBody(cx,cy,z+.5,z+1,.3,F);const lc=P(cx,cy,z+1);cone(lc,.33*R2*U,.25*U,F.right);apex=[lc[0],lc[1]-.25*U];
   }
   if(t.flag){const x=apex[0],y=apex[1],hh=t.t==='rail'?1.1*U:.75*U;line([[x,y],[x,y-hh]]);
-    poly([[x,y-hh],[x+.5*U,y-hh+.14*U],[x,y-hh+.3*U]],F.acc,'d');bnd(x+.5*U,y-hh)}
+    poly([[x,y-hh],[x+.5*U,y-hh+.14*U],[x,y-hh+.3*U]],F.acc,'d fl');bnd(x+.5*U,y-hh)}
 }
 function drawBridge(e,F){
   drawBox(e,F);const hh=.28,z=e.z1;
@@ -324,61 +400,178 @@ function drawBridge(e,F){
     for(let k=0;k<=n;k++){const p=at(k);line([P(p[0],p[1],z),P(p[0],p[1],z+hh)])}
     const a=at(0),b=at(n);line([P(a[0],a[1],z+hh),P(b[0],b[1],z+hh)])}
 }
-function render(m,mode,palKey){
-  C={o:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
-  const fill=mode==='fill',pal=PAL[palKey],Wt='#ffffff';
+function drawTree(e,F){
+  const cx=(e.x0+e.x1)/2,cy=(e.y0+e.y1)/2,z=e.z0,b=P(cx,cy,z),x=b[0],y=b[1];
+  ell(b,.13*R2*U,.13*R2*U/2,F.top,'d');
+  if(e.tt==='round'){line([b,[x,y-.55*U]],'s');const c=[x,y-.88*U],r=.34*U;ell(c,r,r,F.leaf,'s');
+    line([[x-.16*U,y-.82*U],[x-.05*U,y-.7*U],[x+.12*U,y-.74*U]])}
+  else if(e.tt==='cypress'){line([b,[x,y-.25*U]],'s');const t=y-1.5*U,m=y-.75*U,bt=y-.2*U;bnd(x,t);bnd(x+.24*U,m);bnd(x-.24*U,m);
+    C.o.push(`<path d="M${r2(x)} ${r2(t)} Q${r2(x+.3*U)} ${r2(m)} ${r2(x)} ${r2(bt)} Q${r2(x-.3*U)} ${r2(m)} ${r2(x)} ${r2(t)}Z" fill="${F.leaf}" class="s"/>`);
+    line([[x,y-1.25*U],[x,y-.45*U]])}
+  else{line([b,[x,y-.28*U]],'s');for(const[w,yb,ht]of[[.36,.28,.55],[.29,.58,.5],[.21,.86,.46]])poly([[x-w*U,y-yb*U],[x,y-(yb+ht)*U],[x+w*U,y-yb*U]],F.leaf,'s')}
+}
+// Cali the calico princess and Neo the napper live downstairs; Ramses the leaper and Diego the talker live upstairs
+function drawCat(e,fill){
+  const a=P((e.x0+e.x1)/2,(e.y0+e.y1)/2,e.z0),s=e.cat===1?31:27,f=fill?CATC[e.cat]:'#ffffff',k=`fill="none" class="k"`,eye=INK;
+  bnd(a[0]-20,a[1]-s-8);bnd(a[0]+24,a[1]+2);
+  const head=`<path d="M-.11 -.72 L-.1 -.98 L0 -.86 L.12 -.86 L.22 -.98 L.23 -.72 A.17 .14 0 0 1 -.11 -.72Z" fill="${f}" class="k"/>`;
+  const eyes=`<circle cx=".01" cy="-.73" r=".024" style="fill:${eye}"/><circle cx=".13" cy="-.73" r=".024" style="fill:${eye}"/>`;
+  let body;
+  if(e.cat===1){ // Neo: big, unbothered, napping loaf
+    body=`<path d="M-.44 -.02 C-.2 .06 .1 .05 .22 0" ${k}/>`+
+      `<path d="M-.44 0 C-.48 -.36 -.1 -.44 .2 -.38 L.34 0Z" fill="${f}" class="k"/>`+
+      `<g transform="translate(.2 .3)">${head}<path d="M-.03 -.73 Q.01 -.7 .05 -.73 M.09 -.73 Q.13 -.7 .17 -.73" ${k}/></g>`+
+      `<path class="k zz" fill="none" d="M.52 -.84 L.64 -.84 L.52 -.72 L.64 -.72 M.72 -1.08 L.8 -1.08 L.72 -1 L.8 -1"/>`;
+  }else{
+    const pc=c=>fill?c:'#ffffff';
+    const marks=e.cat===0?`<path d="M-.27 -.05 C-.3 -.25 -.2 -.4 -.08 -.38 C-.02 -.2 -.12 -.06 -.27 -.05Z" fill="${pc('#d9894a')}" class="k"/><path d="M.05 -.55 C.2 -.55 .24 -.4 .2 -.28 C.1 -.3 .02 -.42 .05 -.55Z" fill="${pc('#3a3430')}" class="k"/>`
+      :e.cat===2?`<g style="fill:${INK}"><circle cx="-.13" cy="-.3" r=".035"/><circle cx=".07" cy="-.44" r=".035"/><circle cx=".12" cy="-.2" r=".035"/><circle cx="-.06" cy="-.14" r=".03"/><circle cx="-.2" cy="-.45" r=".03"/></g>`
+      :`<g ${k}><circle cx="-.15" cy="-.32" r=".045"/><circle cx=".06" cy="-.46" r=".045"/><circle cx=".12" cy="-.22" r=".045"/><circle cx="-.08" cy="-.13" r=".04"/></g>`;
+    const capPatch=e.cat===0?`<path d="M.12 -.86 L.22 -.98 L.23 -.74 C.18 -.76 .13 -.8 .12 -.86Z" fill="${pc('#d9894a')}" class="k"/>`:'';
+    const talk=e.cat===3?`<path d="M.33 -.82 Q.39 -.77 .33 -.71 M.41 -.86 Q.49 -.77 .41 -.67" ${k}/>`:'';
+    body=`<path d="M.24 -.06 C.47 -.06 .52 -.3 .41 -.43" ${k}/>`+
+      `<path d="M-.3 0 C-.34 -.36 -.18 -.62 .02 -.62 C.2 -.62 .28 -.36 .26 0Z" fill="${f}" class="k"/>`+marks+head+capPatch+eyes+talk+
+      `<path d="M0 -.32 L0 0" ${k}/>`;
+    if(e.cat===2)body=`<g class="hop">${body}</g>`;
+  }
+  C.o.push(`<g transform="translate(${r2(a[0])} ${r2(a[1])}) scale(${e.dir*s} ${s})" class="cat" data-cat="${e.cat}"><circle cy="-.5" r=".75" fill="transparent"/>${body}</g>`);
+}
+function drawPumpkin(e,fill,night){
+  const a=P((e.x0+e.x1)/2,(e.y0+e.y1)/2,e.z0),s=17*e.sz,x=a[0],y=a[1];bnd(x-.7*s,y-1*s);bnd(x+.7*s,y+2);
+  const o=fill?'#e07a24':'#ffffff',sd=fill?'#c4621a':'#ffffff',fc=fill?(night?'#ffd27a':'#3a1d0c'):'#ffffff';
+  C.o.push(`<path d="M${r2(x-.04*s)} ${r2(y-.74*s)} L${r2(x-.02*s)} ${r2(y-.98*s)} L${r2(x+.1*s)} ${r2(y-.96*s)} L${r2(x+.06*s)} ${r2(y-.72*s)}Z" fill="${fill?'#4f6b3a':'#ffffff'}" class="d"/>`);
+  ell([x-.26*s,y-.38*s],.32*s,.37*s,sd,'d');ell([x+.26*s,y-.38*s],.32*s,.37*s,sd,'d');ell([x,y-.4*s],.36*s,.4*s,o,'d');
+  poly([[x-.24*s,y-.44*s],[x-.08*s,y-.44*s],[x-.16*s,y-.58*s]],fc,'d');poly([[x+.08*s,y-.44*s],[x+.24*s,y-.44*s],[x+.16*s,y-.58*s]],fc,'d');
+  poly([[x-.24*s,y-.3*s],[x+.24*s,y-.3*s],[x+.13*s,y-.17*s],[x,y-.23*s],[x-.13*s,y-.17*s]],fc,'d');
+}
+function nightOf(p){const n='#1a2140',d=c=>mix(c,n,.5);
+  return{paper:'#10162b',ink:p.ink?'#c9d6f0':'#07090f',st:d(p.st),win:'#232a45',lit:'#ffd27a',flag:mix(p.flag,n,.3),leaf:d(p.leaf||mix(p.c[1],'#3c7a4a',.55)),c:p.c.map(d)}}
+function skyLayer(seed,x,y,w,h,night,spooky){
+  const S=stream(seed,'sky'),o=[],top=y+14,band=h*.3;
+  const bat=(a,b,s,f,st)=>o.push(`<path d="M${r2(a)} ${r2(b)} q${r2(-4*s)} ${r2(-4*s)} ${r2(-10*s)} ${r2(-2*s)} q${r2(3*s)} ${r2(2*s)} ${r2(2*s)} ${r2(5*s)} q${r2(3*s)} ${r2(-2*s)} ${r2(5*s)} 0 q${r2(2*s)} ${r2(-2*s)} ${r2(3*s)} ${r2(-1*s)} q${r2(1*s)} ${r2(-1*s)} ${r2(3*s)} ${r2(1*s)} q${r2(2*s)} ${r2(-2*s)} ${r2(5*s)} 0 q${r2(-1*s)} ${r2(-3*s)} ${r2(2*s)} ${r2(-5*s)} q${r2(-6*s)} ${r2(-2*s)} ${r2(-10*s)} ${r2(2*s)}Z" fill="${f}"${st?` stroke="${st}" stroke-width=".8"`:''}/>`);
+  if(night){
+    for(let i=0;i<36;i++)o.push(`<circle cx="${r2(x+S.f()*w)}" cy="${r2(top+S.f()*band*1.4)}" r="${r2(.7+S.f()*1.3)}" fill="#f3e9c9"/>`);
+    for(let i=0;i<5;i++){const a=x+S.f()*w,b=top+S.f()*band,s=3+S.f()*3;
+      o.push(`<path d="M${r2(a)} ${r2(b-s)} Q${r2(a)} ${r2(b)} ${r2(a+s)} ${r2(b)} Q${r2(a)} ${r2(b)} ${r2(a)} ${r2(b+s)} Q${r2(a)} ${r2(b)} ${r2(a-s)} ${r2(b)} Q${r2(a)} ${r2(b)} ${r2(a)} ${r2(b-s)}Z" fill="#f3e9c9"/>`)}
+    const mx=x+w*(.12+S.f()*.14),my=top+band*.35,r=19;
+    o.push(`<path d="M${r2(mx)} ${r2(my-r)} A${r} ${r} 0 1 0 ${r2(mx)} ${r2(my+r)} A${r2(r*.68)} ${r} 0 1 1 ${r2(mx)} ${r2(my-r)}Z" fill="#f3e9c9"/>`);
+    if(spooky)for(let i=0;i<4;i++)bat(mx+24+S.f()*w*.35,my-10+S.f()*band*.7,.8+S.f()*.6,'#07090f','#f3e9c9');
+  }else{
+    const n=3+S.int(4);
+    for(let i=0;i<n;i++){const a=x+w*(.08+S.f()*.84),b=top+S.f()*band,s=.8+S.f()*.7;
+      if(spooky)bat(a,b,s,INK);
+      else o.push(`<path d="M${r2(a-7*s)} ${r2(b-2*s)} Q${r2(a-3*s)} ${r2(b-5*s)} ${r2(a)} ${r2(b)} Q${r2(a+3*s)} ${r2(b-5*s)} ${r2(a+7*s)} ${r2(b-2*s)}" fill="none" class="d"/>`)}
+  }
+  return o.join('');
+}
+function render(m,mode,palKey,opt){
+  opt=opt||{};C={o:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
+  const fill=mode==='fill',night=fill&&opt.night,pal=night?nightOf(PAL[palKey]):PAL[palKey],Wt='#ffffff',ink=fill&&pal.ink?pal.ink:null;
+  let i=0;
   for(const e of m.order){
+    if(e.kind==='cat'&&opt.cats===false)continue;
     const base=e.ci<0?pal.st:pal.c[e.ci];
-    const F=fill?{top:mix(base,'#ffffff',.28),left:base,right:mix(base,'#000000',.24),win:pal.win,acc:pal.flag}:{top:Wt,left:Wt,right:Wt,win:Wt,acc:Wt};
+    const F=fill?{top:mix(base,'#ffffff',.28),left:base,right:mix(base,'#000000',.24),win:pal.win,lit:pal.lit,acc:pal.flag,leaf:pal.leaf||mix(pal.c[1],'#3c7a4a',.55)}:{top:Wt,left:Wt,right:Wt,win:Wt,acc:Wt,leaf:Wt};
+    C.o.push(`<g class="e" style="--i:${i++}">`);
     if(e.kind==='cyl')cylBody(e.cx,e.cy,e.z0,e.z1,e.r,F);
     else if(e.kind==='bridge')drawBridge(e,F);
+    else if(e.kind==='tree')drawTree(e,F);
+    else if(e.kind==='cat')drawCat(e,fill);
+    else if(e.kind==='pumpkin')drawPumpkin(e,fill,night);
     else drawBox(e,F);
     for(const d of e.det)drawDetail(e,d,F);
     if(e.fall)drawFall(e,e.fall);
     if(e.top)drawTop(e,F);
+    C.o.push('</g>');
   }
   const pad=48,x=C.x0-pad,y=C.y0-pad,w=C.x1-C.x0+pad*2,h=C.y1-C.y0+pad*2;
-  const bg=fill?pal.paper:'#ffffff';
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r2(x)} ${r2(y)} ${r2(w)} ${r2(h)}" preserveAspectRatio="xMidYMid meet">`+
-    `<style>.s,.d{stroke:${INK};stroke-linejoin:round;stroke-linecap:round}.s{stroke-width:2.2}.d{stroke-width:1.1}</style>`+
-    `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${bg}"/>`+C.o.join('')+`</svg>`;
-  return{svg,w,h};
+  const bg=fill?pal.paper:'#ffffff',sky=opt.sky?skyLayer(m.seed,x,y,w,h,night,opt.spooky):'';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r2(x)} ${r2(y)} ${r2(w)} ${r2(h)}" preserveAspectRatio="xMidYMid meet"${ink?` style="--ink:${ink}"`:''}>`+
+    `<style>.s,.d,.k{stroke:${INK};stroke-linejoin:round;stroke-linecap:round}.s{stroke-width:2.2}.d{stroke-width:1.1}.k{stroke-width:.055}</style>`+
+    `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${bg}"/>`+sky+C.o.join('')+`</svg>`;
+  return{svg,w,h,ink:ink||'#1c1a17',paper:bg};
 }
 
 /* ---------- page ---------- */
 function dailySeed(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const lum=h=>{const v=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);return .2126*v[0]+.7152*v[1]+.0722*v[2]};
 function initUI(){
   const $=id=>document.getElementById(id);
-  const S={seed:'',daily:false,mode:'line',pal:'Quiet Pixel',height:.5,chaos:.35,model:null,out:null};
+  const S={seed:'',daily:false,mode:'line',pal:'Quiet Pixel',height:.5,chaos:.35,cats:true,sky:true,night:false,spooky:false,lang:'en',model:null,out:null,pix:null,tok:0};
   const today=new Date(),dseed=dailySeed(today),dlabel=`daily, ${MON[today.getMonth()]} ${today.getDate()}`;
+  S.spooky=(today.getMonth()===9&&today.getDate()>=20)||(today.getMonth()===10&&today.getDate()===1);
   const okSeed=s=>typeof s==='string'&&/^[A-Za-z0-9-]{1,32}$/.test(s);
   for(const k of Object.keys(PAL)){const o=document.createElement('option');o.value=o.textContent=k;$('pal').appendChild(o)}
   let dl=null;try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(x=>{dl=x}).catch(()=>{})}catch(e){}
   let tt;const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1800)};
+  const press=(id,v)=>$(id).setAttribute('aria-pressed',v);
 
-  function draw(){
-    S.out=render(S.model,S.mode==='fill'?'fill':'line',S.pal);
-    $('art').innerHTML=S.out.svg;
-    document.documentElement.style.setProperty('--paper',S.mode==='fill'?PAL[S.pal].paper:'#ffffff');
+  function rasterOut(out,long){return new Promise((res,rej)=>{
+    const{w,h,ink}=out,k=long/Math.max(w,h),cw=Math.round(w*k),ch=Math.round(h*k);
+    const src=out.svg.split(INK).join(ink).replace(/ style="--ink:[^"]*"/,'').replace('<svg ',`<svg width="${cw}" height="${ch}" `);
+    const img=new Image(),url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'}));
+    img.onload=()=>{const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;const g=cv.getContext('2d');
+      g.fillStyle=out.paper;g.fillRect(0,0,cw,ch);g.drawImage(img,0,0,cw,ch);URL.revokeObjectURL(url);res(cv)};
+    img.onerror=()=>{URL.revokeObjectURL(url);rej()};img.src=url;})}
+  // pixel mode: render 3x, then each 3x3 block becomes one pixel snapped to the palette; ink wins if it touches the block
+  async function pixelate(out){
+    const N=210,sub=3,cv=await rasterOut(out,N*sub),W=cv.width,H=cv.height,d=cv.getContext('2d').getImageData(0,0,W,H).data;
+    const hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+    const cols=[...new Set((out.svg.match(/#[0-9a-f]{6}/gi)||[]).map(c=>c.toLowerCase()))].map(hx),ink=hx(out.ink);
+    const thr=Math.min(4200,...cols.map(c=>(c[0]-ink[0])**2+(c[1]-ink[1])**2+(c[2]-ink[2])**2).filter(v=>v>0).map(v=>v/4));
+    const pw=Math.floor(W/sub),ph=Math.floor(H/sub),pc=document.createElement('canvas');pc.width=pw;pc.height=ph;
+    const pg=pc.getContext('2d'),id=pg.createImageData(pw,ph),q=id.data,dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+    for(let py=0;py<ph;py++)for(let px=0;px<pw;px++){
+      let ni=0,acc=[0,0,0],na=0;
+      for(let j=0;j<sub;j++)for(let i=0;i<sub;i++){const o=((py*sub+j)*W+px*sub+i)*4,c=[d[o],d[o+1],d[o+2]];
+        if(dist(c,ink)<thr)ni++;else{acc[0]+=c[0];acc[1]+=c[1];acc[2]+=c[2];na++}}
+      let c=ink;if(ni<2&&na){const a=acc.map(v=>v/na);let bd=1e9;for(const k of cols){const dd=dist(a,k);if(dd<bd){bd=dd;c=k}}}
+      const o=(py*pw+px)*4;q[o]=c[0];q[o+1]=c[1];q[o+2]=c[2];q[o+3]=255;
+    }
+    pg.putImageData(id,0,0);return pc;
   }
-  function build(){
-    S.model=generate(S.seed,S.height,S.chaos);
-    $('tname').textContent=towerName(S.seed);
+  function upscale(src,long){const k=Math.max(1,Math.round(long/Math.max(src.width,src.height))),c=document.createElement('canvas');
+    c.width=src.width*k;c.height=src.height*k;const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(src,0,0,c.width,c.height);return c}
+  const towerCanvas=long=>S.mode==='pixel'?Promise.resolve(upscale(S.pix,long)):rasterOut(S.out,long);
+
+  function chrome(){
+    const pal=S.night&&S.mode!=='line'?nightOf(PAL[S.pal]):PAL[S.pal],paper=S.out.paper;
+    let ink=S.mode!=='line'&&pal.ink?pal.ink:'#1c1a17';if(lum(paper)<.35&&lum(ink)<.5)ink='#ece6d6';
+    const rs=document.documentElement.style;
+    rs.setProperty('--paper',paper);rs.setProperty('--ink',ink);rs.setProperty('--mute',mix(ink,paper,.42));rs.setProperty('--rule',mix(ink,paper,.82));
+  }
+  async function draw(anim){
+    const art=$('art'),tok=++S.tok;art.classList.remove('build');
+    S.out=render(S.model,S.mode==='line'?'line':'fill',S.pal,{cats:S.cats,sky:S.sky,night:S.night,spooky:S.spooky});
+    chrome();
+    if(S.mode==='pixel'){
+      let pc;try{pc=await pixelate(S.out)}catch(e){toast('Pixel view failed');return}
+      if(tok!==S.tok)return;S.pix=pc;pc.className='pix';art.innerHTML='';art.appendChild(pc);return;
+    }
+    art.innerHTML=S.out.svg;
+    if(anim){void art.offsetWidth;art.classList.add('build')}
+  }
+  function showName(){const n=towerName(S.seed);$('tname').textContent=n[S.lang];$('tname').lang=S.lang;
+    $('lang').innerHTML=S.lang==='en'?'<b>EN</b> / fr':'en / <b>FR</b>'}
+  function build(anim){
+    S.model=generate(S.seed,S.height,S.chaos,{spooky:S.spooky});
+    showName();
     $('plateSeed').textContent=S.daily?dlabel:'seed '+S.seed;
     if(document.activeElement!==$('seed'))$('seed').value=S.daily?dlabel:S.seed;
-    draw();
+    draw(anim);
   }
   function setSeed(s,daily){
     S.seed=s;S.daily=daily;
     try{const u=new URL(location.href);u.searchParams.delete('seed');u.hash=daily?'':s;history.replaceState(null,'',u)}catch(e){try{location.hash=daily?'':s}catch(_){}}
-    build();
+    build(true);remember(s);
   }
   function fresh(){const a=new Uint32Array(1);crypto.getRandomValues(a);setSeed(a[0].toString(36).padStart(6,'0').slice(-6),false)}
   function readSeed(){let s=null;try{s=new URLSearchParams(location.search).get('seed')}catch(e){}
     if(!okSeed(s))s=decodeURIComponent((location.hash||'').slice(1));return okSeed(s)?s:null}
 
   $('new').onclick=fresh;
+  $('plate').onclick=()=>{S.lang=S.lang==='en'?'fr':'en';showName()};
   $('seed').addEventListener('focus',e=>{e.target.value=S.seed;e.target.select()});
   $('seed').addEventListener('blur',e=>{e.target.value=S.daily?dlabel:S.seed});
   $('seed').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=e.target.value.trim().replace(/\s+/g,'-');
@@ -388,25 +581,63 @@ function initUI(){
     try{navigator.clipboard.writeText(url).then(()=>toast('Link copied'),fb)}catch(e){fb()}};
   let raf=0;const regen=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{S.height=+$('height').value;S.chaos=+$('chaos').value;build()})};
   $('height').oninput=regen;$('chaos').oninput=regen;
-  const setMode=m=>{S.mode=m;$('mLine').setAttribute('aria-pressed',m==='line');$('mFill').setAttribute('aria-pressed',m==='fill');$('pal').disabled=m!=='fill';draw()};
-  $('mLine').onclick=()=>setMode('line');$('mFill').onclick=()=>setMode('fill');
+  const setMode=m=>{S.mode=m;press('mLine',m==='line');press('mFill',m==='fill');press('mPix',m==='pixel');
+    $('pal').disabled=m==='line';$('night').disabled=m==='line';$('svgx').disabled=m==='pixel';$('replay').disabled=m==='pixel';draw()};
+  $('mLine').onclick=()=>setMode('line');$('mFill').onclick=()=>setMode('fill');$('mPix').onclick=()=>setMode('pixel');
   $('pal').onchange=e=>{S.pal=e.target.value;draw()};
+  $('cats').onclick=()=>{S.cats=!S.cats;press('cats',S.cats);draw()};
+  $('sky').onclick=()=>{S.sky=!S.sky;press('sky',S.sky);draw()};
+  $('night').onclick=()=>{S.night=!S.night;press('night',S.night);draw()};
+  $('replay').onclick=()=>draw(true);
+  $('spooky').onclick=()=>{S.spooky=!S.spooky;press('spooky',S.spooky);build()};
+  press('spooky',S.spooky);
+  // recent towers, kept in this browser only
+  const RK='isoline.recent';
+  const recent=()=>{try{const v=JSON.parse(localStorage.getItem(RK)||'[]');return Array.isArray(v)?v.filter(okSeed):[]}catch(e){return[]}};
+  function remember(seed){const l=[seed,...recent().filter(x=>x!==seed)].slice(0,12);try{localStorage.setItem(RK,JSON.stringify(l))}catch(e){}if(!$('recent').hidden)strip()}
+  function strip(){const box=$('recent');box.innerHTML='';const l=recent();if(!l.includes(S.seed))l.unshift(S.seed);
+    for(const sd of l){const b=document.createElement('button');b.className=sd===S.seed?'cur':'';b.title=towerName(sd)[S.lang];
+      b.innerHTML=render(generate(sd,S.height,S.chaos),'line','Quiet Pixel',{cats:false}).svg;
+      const t=document.createElement('span');t.textContent=sd===dseed?'daily':sd;b.appendChild(t);
+      b.onclick=()=>setSeed(sd,sd===dseed);box.appendChild(b)}}
+  $('recentBtn').onclick=()=>{const box=$('recent');box.hidden=!box.hidden;press('recentBtn',!box.hidden);if(!box.hidden)strip()};
+  // tap a cat to meet them
+  const CATS={en:[['Cali','The Princess','Runs the downstairs.'],['Neo','The Cuddler','Napping. Do not disturb.'],['Ramses','The Adventurer','Investigating everything.'],['Diego','The Loyalist','Yelling until someone notices.']],
+    fr:[['Cali','La Princesse','Règne sur le rez-de-chaussée.'],['Neo','Le Câlineur','Sieste en cours. Ne pas déranger.'],['Ramses',"L'Aventurier",'Enquête sur tout.'],['Diego','Le Loyal',"Miaule jusqu'à ce qu'on le remarque."]]};
+  let bt;$('art').addEventListener('click',e=>{const g=e.target.closest&&e.target.closest('[data-cat]'),bb=$('bubble');
+    if(!g){bb.hidden=true;return}
+    const c=CATS[S.lang][+g.dataset.cat],r=g.getBoundingClientRect();
+    bb.innerHTML='';const n=document.createElement('b');n.textContent=c[0]+', '+c[1];const q=document.createElement('span');q.textContent=c[2];bb.append(n,q);
+    bb.style.left=Math.min(innerWidth-120,Math.max(120,r.left+r.width/2))+'px';bb.style.top=(r.top-10)+'px';bb.hidden=false;
+    clearTimeout(bt);bt=setTimeout(()=>{bb.hidden=true},2800)});
 
   async function save(name,blob){
     if(dl){try{await dl.save({filename:name,data:blob});toast('Saved '+name)}catch(e){toast(e&&e.code==='declined'?'Save cancelled':'Saving is not available in this view')}return}
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
   }
-  const suffix=()=>S.mode==='fill'?'fill':'linework';
+  const suffix=()=>({line:'linework',fill:S.night?'night':'fill',pixel:'pixel'})[S.mode];
+  const toPng=(cv,name)=>cv.toBlob(b=>b?save(name,b):toast('PNG export failed, try SVG'),'image/png');
   $('svgx').onclick=()=>save(`isoline-${S.seed}-${suffix()}.svg`,new Blob([S.out.svg],{type:'image/svg+xml'}));
-  $('png').onclick=()=>{
-    const{w,h}=S.out,k=3000/Math.max(w,h),cw=Math.round(w*k),ch=Math.round(h*k);
-    const src=S.out.svg.split(INK).join('#1c1a17').replace('<svg ',`<svg width="${cw}" height="${ch}" `);
-    const img=new Image(),url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'}));
-    img.onload=()=>{const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;const g=cv.getContext('2d');
-      g.fillStyle=S.mode==='fill'?PAL[S.pal].paper:'#ffffff';g.fillRect(0,0,cw,ch);g.drawImage(img,0,0,cw,ch);URL.revokeObjectURL(url);
-      cv.toBlob(b=>b?save(`isoline-${S.seed}-${suffix()}.png`,b):toast('PNG export failed, try SVG'),'image/png')};
-    img.onerror=()=>{URL.revokeObjectURL(url);toast('PNG export failed, try SVG')};img.src=url;
-  };
+  $('png').onclick=()=>towerCanvas(3000).then(cv=>toPng(cv,`isoline-${S.seed}-${suffix()}.png`),()=>toast('PNG export failed, try SVG'));
+  // framed sheets: Instagram 4:5 post and a US Letter colouring page at 300 dpi
+  async function sheet(W,H,kind){
+    const k=W/1080;let tw;try{tw=await towerCanvas(Math.round(1600*k))}catch(e){toast('Export failed');return}
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d'),ink=S.mode==='line'?'#1c1a17':getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()||S.out.ink;
+    g.fillStyle=S.out.paper;g.fillRect(0,0,W,H);g.imageSmoothingEnabled=S.mode!=='pixel';
+    g.strokeStyle=ink;g.lineWidth=2*k;g.strokeRect(44*k,44*k,W-88*k,H-88*k);
+    const bx=90*k,by=100*k,bw=W-180*k,bh=H-400*k,s=Math.min(bw/tw.width,bh/tw.height),dw=tw.width*s,dh=tw.height*s;
+    g.drawImage(tw,bx+(bw-dw)/2,by+(bh-dh)/2,dw,dh);
+    try{await document.fonts.load('700 40px "Space Mono"');await document.fonts.load('400 18px "Space Mono"')}catch(e){}
+    g.fillStyle=ink;g.textAlign='center';
+    const name=$('tname').textContent;let fs=42*k;do{g.font=`700 ${fs}px "Space Mono", monospace`;fs-=2*k}while(g.measureText(name).width>W-200*k&&fs>20*k);
+    g.fillText(name,W/2,H-190*k);
+    g.beginPath();g.moveTo(W/2-60*k,H-160*k);g.lineTo(W/2+60*k,H-160*k);g.lineWidth=1.5*k;g.stroke();
+    g.font=`400 ${18*k}px "Space Mono", monospace`;try{g.letterSpacing=3*k+'px'}catch(e){}
+    g.fillText(('ISO LINE TOWERS  /  '+(S.daily?dlabel:'seed '+S.seed)).toUpperCase(),W/2,H-118*k);
+    toPng(cv,`isoline-${S.seed}-${kind}.png`);
+  }
+  $('post').onclick=()=>sheet(1080,1350,'post');
+  $('page').onclick=()=>sheet(2550,3300,'page');
   document.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.target.closest('input,select,button,textarea')){e.preventDefault();fresh()}});
   window.addEventListener('hashchange',()=>{const s=readSeed();if(s&&s!==S.seed){S.seed=s;S.daily=s===dseed;build()}});
   const s0=readSeed();if(s0)setSeed(s0,s0===dseed);else setSeed(dseed,true);
