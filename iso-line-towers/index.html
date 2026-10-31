@@ -1,0 +1,417 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Iso Line Towers</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: one full-bleed drawing sheet, a name plate pinned top-left, one quiet control bar along the bottom. */
+:root{
+  --paper:#ffffff; --ink:#1c1a17; --mute:#77726a; --rule:rgba(28,26,23,.16);
+  --mono:"Space Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;display:flex;flex-direction:column;overflow:hidden;transition:background .25s}
+#stage{flex:1;min-height:0;display:flex;padding-block:64px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#art{flex:1;min-width:0;min-height:0}
+#art svg{width:100%;height:100%;display:block}
+.plate{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));max-width:calc(100% - 32px);border:1px solid var(--ink);background:var(--paper);padding:6px 10px 7px;display:flex;flex-direction:column;gap:1px}
+.plate small{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.plate b{font-weight:700;font-size:13px;text-wrap:balance}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;border-top:1px solid var(--rule);background:var(--paper);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.grp{display:inline-flex;align-items:center;gap:6px}
+button,select,input{font:inherit;color:var(--ink)}
+button,select{background:var(--paper);border:1px solid var(--ink);border-radius:0;padding:5px 9px;cursor:pointer;line-height:1.2}
+button:hover,button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+select:disabled{opacity:.35;cursor:default}
+.seg{display:inline-flex}.seg button+button{border-left:0}
+#seed{width:14ch;border:0;border-bottom:1px solid var(--ink);background:transparent;padding:4px 0;border-radius:0}
+label{display:inline-flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+input[type=range]{accent-color:var(--ink);width:88px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.push{margin-left:auto}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 12px;font-size:11px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+@media (max-width:560px){.push{margin-left:0}input[type=range]{width:72px}.bar{gap:8px 12px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<main id="stage"><div id="art" aria-label="Isometric tower drawing" role="img"></div></main>
+<div class="plate"><small id="plateSeed">tower</small><b id="tname"></b></div>
+<div id="toast" role="status"></div>
+<nav class="bar" aria-label="Controls">
+  <div class="grp"><input id="seed" aria-label="Seed" spellcheck="false" autocomplete="off"><button id="copy">Copy link</button></div>
+  <button id="new">New tower</button>
+  <label for="height">Height <input type="range" id="height" min="0" max="1" step="0.05" value="0.5"></label>
+  <label for="chaos">Chaos <input type="range" id="chaos" min="0" max="1" step="0.05" value="0.35"></label>
+  <div class="seg" role="group" aria-label="Mode"><button id="mLine" aria-pressed="true">Linework</button><button id="mFill" aria-pressed="false">Flat fill</button></div>
+  <select id="pal" aria-label="Palette" disabled></select>
+  <div class="grp push"><button id="png">Export PNG</button><button id="svgx">Export SVG</button></div>
+</nav>
+
+<script>
+/* ---------- seeded randomness: mulberry32, one named stream per subsystem ---------- */
+function xmur3(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19}h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^=h>>>16)>>>0}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function stream(seed,name){const r=mulberry32(xmur3(seed+'/'+name));return{f:r,int:n=>Math.floor(r()*n),range:(a,b)=>a+r()*(b-a),pick:a=>a[Math.floor(r()*a.length)],chance:p=>r()<p}}
+
+/* ---------- names ---------- */
+const ADJ=['Sunken','Hollow','Silent','Gilded','Drowned','Leaning','Winding','Pale','Lantern','Forgotten','Crooked','Salt','Upper','Ashen','Quiet','Patient'];
+const NOUN=['Belfry','Archive','Cistern','Observatory','Granary','Lighthouse','Aqueduct','Library','Reliquary','Mill','Bastion','Stair','Orrery','Rookery','Conservatory'];
+const ORD=['Ninth','Seventh','Last','First','Eleventh','Third','Twelfth','Fourth'];
+const SYL=['ve','lo','ra','mir','tha','sel','or','qua','zen','li','dor','an','is','eth','ka','mu','vel','ne','os','ty'];
+function towerName(seed){
+  const N=stream(seed,'name');
+  let pl='';const k=2+N.int(2);for(let i=0;i<k;i++)pl+=N.pick(SYL);pl=pl[0].toUpperCase()+pl.slice(1);
+  const a=N.pick(ADJ),n=N.pick(NOUN),o=N.pick(ORD);
+  return [`The ${a} ${n}`,`The ${n} of ${pl}`,`Tower of the ${o} ${n}`,`The ${a} Stair of ${pl}`,`${pl} ${n}`][N.int(5)];
+}
+
+/* ---------- the grammar ---------- */
+const FOOT=[[1,1],[2,1],[1,2],[2,2]];
+function generate(seed,height,chaos){
+  const M=stream(seed,'mass'),T=stream(seed,'tops'),D=stream(seed,'detail'),W=stream(seed,'water');
+  const P=5+M.int(2),OFF=3,G=P+2*OFF;
+  const Hm=new Array(G*G).fill(0);
+  const hAt=(x,y)=>(x<-OFF||y<-OFF||x>=P+OFF||y>=P+OFF)?99:Hm[(x+OFF)*G+(y+OFF)];
+  const hSet=(x,y,v)=>{Hm[(x+OFF)*G+(y+OFF)]=v};
+  const on=(x,y)=>x>=0&&y>=0&&x<P&&y<P;
+  const ents=[];
+  const plinth={kind:'plinth',x0:0,y0:0,z0:0,x1:P,y1:P,z1:1,ci:-1,det:[]};ents.push(plinth);
+  for(let x=0;x<P;x++)for(let y=0;y<P;y++)hSet(x,y,1);
+  const ns=1+M.int(2);
+  for(let s=0;s<ns;s++)ents.push({kind:'step',x0:P+s*.5,x1:P+(s+1)*.5,y0:P-1.6,y1:P-.4,z0:0,z1:(ns-s)/(ns+1),ci:-1,det:[]});
+
+  const lo=9+Math.round(height*4),n=Math.min(16,lo+M.int(4));
+  const maxZ=4+Math.round(height*4);
+  const blocks=[];
+  for(let i=0;i<n;i++){
+    const cyl=M.chance(.17);
+    const [w,d]=cyl?[1,1]:(i<n/3?M.pick([[2,2],[2,2],[2,1],[1,2]]):M.pick(FOOT));
+    const h=1+M.int(3);
+    const off=chaos>.3;
+    let best=null,bs=-1e9;
+    for(let x0=off?-1:0;x0<=(off?P+1-w:P-w);x0++)for(let y0=off?-1:0;y0<=(off?P+1-d:P-d);y0++){
+      let top=0,mn=99,offc=0;
+      for(let x=x0;x<x0+w;x++)for(let y=y0;y<y0+d;y++){const v=hAt(x,y);top=Math.max(top,v);mn=Math.min(mn,v);if(!on(x,y))offc++}
+      const jit=M.f();
+      if(top===0||top>=99)continue;
+      if(offc&&top<2)continue;
+      const cx=x0+w/2,cy=y0+d/2,dist=Math.hypot(cx-P/2,cy-P/2);
+      let s=.9*top-dist*(.35+.22*top)-(cx+cy-P)*.15*top+jit*1.8;
+      if(mn<top)s-=(1-chaos)*7+.5;
+      s-=offc*(1-chaos)*9;
+      if(top+h>maxZ)s-=20;
+      if(s>bs){bs=s;best={x0,y0,top,over:mn<top}}
+    }
+    if(!best)continue;
+    let z0=best.top;
+    if(chaos>.5&&z0>=2&&M.chance(chaos*.22))z0+=1;
+    const b={kind:cyl?'cyl':'box',x0:best.x0,y0:best.y0,x1:best.x0+w,y1:best.y0+d,z0,z1:z0+h,ci:M.int(5),det:[]};
+    if(cyl){b.cx=b.x0+.5;b.cy=b.y0+.5;b.r=.42}
+    for(let x=b.x0;x<b.x1;x++)for(let y=b.y0;y<b.y1;y++)hSet(x,y,b.z1);
+    blocks.push(b);ents.push(b);
+  }
+  // topmost blocks get one top each
+  for(const b of blocks){
+    let tm=true;for(let x=b.x0;x<b.x1;x++)for(let y=b.y0;y<b.y1;y++)if(hAt(x,y)!==b.z1)tm=false;
+    if(!tm)continue;
+    const w=b.x1-b.x0,d=b.y1-b.y0;
+    const t=b.kind==='cyl'?T.pick(['dome','cone','tank','cone','spire']):w===1&&d===1?T.pick(['spire','cone','dome','rail','tank']):w===2&&d===2?T.pick(['rail','dome','tank','rail','cone']):T.pick(['rail','rail','tank']);
+    const r=b.kind==='cyl'?b.r:Math.min(w,d)/2*.8;
+    b.top={t,r,h:{rail:.3,dome:r*1.22+.3,cone:1,spire:2.2,tank:1.25}[t]};
+  }
+  // flag on the highest top (by screen height)
+  let fl=null,fy=1e9;for(const b of blocks)if(b.top){const y=(b.x0+b.x1+b.y0+b.y1)/4/2-(b.z1+b.top.h);if(y<fy){fy=y;fl=b}}
+  if(fl)fl.top.flag=true;
+  // bridges between stacks at a shared level
+  const nb=Math.min(4,Math.floor(chaos*3+M.f()*.9));
+  if(nb>0){
+    const cands=[],used=new Set();
+    const boxes=blocks.filter(b=>b.kind==='box');
+    for(const A of boxes)for(const B of boxes){
+      if(A===B)continue;
+      for(const ax of [0,1]){
+        const gap=ax?B.y0-A.y1:B.x0-A.x1;if(gap<1||gap>3)continue;
+        const r0=Math.max(ax?A.x0:A.y0,ax?B.x0:B.y0),r1=Math.min(ax?A.x1:A.y1,ax?B.x1:B.y1);
+        for(let r=r0;r<r1;r++)for(let L=Math.max(A.z0,B.z0)+1;L<=Math.min(A.z1,B.z1);L++){
+          let ok=true;for(let g=0;g<gap;g++){const c=ax?[r,A.y1+g]:[A.x1+g,r];if(hAt(c[0],c[1])>L-1)ok=false}
+          if(ok)cands.push({A,B,ax,r,L,gap});
+        }
+      }
+    }
+    for(let k=0;k<nb&&cands.length;k++){
+      const c=cands.splice(M.int(cands.length),1)[0];
+      const key=c.ax+':'+c.r+':'+(c.ax?c.A.y1:c.A.x1);if(used.has(key)){k--;continue}used.add(key);
+      const br=c.ax?{x0:c.r+.25,x1:c.r+.75,y0:c.A.y1,y1:c.B.y0}:{x0:c.A.x1,x1:c.B.x0,y0:c.r+.25,y1:c.r+.75};
+      Object.assign(br,{kind:'bridge',ax:c.ax,z0:c.L-.22,z1:c.L,ci:c.A.ci,det:[]});
+      ents.push(br);
+    }
+  }
+  // waterfalls: down a face to an exposed roof at the block's base
+  const nw=Math.min(3,W.int(1+Math.round(chaos*3))+(chaos>.6?1:0));
+  const wc=[];
+  for(const b of blocks){
+    if(b.kind!=='box'||b.z0<1)continue;
+    for(let y=b.y0;y<b.y1;y++)if(on(b.x1,y)&&hAt(b.x1,y)===b.z0)wc.push({b,f:'r',u:y-b.y0+.5});
+    for(let x=b.x0;x<b.x1;x++)if(on(x,b.y1)&&hAt(x,b.y1)===b.z0)wc.push({b,f:'l',u:x-b.x0+.5});
+  }
+  for(let k=0;k<nw&&wc.length;k++){
+    const c=wc.splice(W.int(wc.length),1)[0];if(c.b.fall){k--;continue}
+    c.b.fall={f:c.f,u:c.u,ph:W.range(0,6.28),rip:2+W.int(2)};
+  }
+  // details
+  for(const f of ['l','r']){const k=1+D.int(2);for(let i=0;i<k;i++){const lim=f==='r'?P-2.2:P-.6;plinth.det.push({t:'door',f,u:.6+D.f()*(lim-.6),a:.2,h:.66})}}
+  for(const b of blocks){
+    const h=b.z1-b.z0,arch=D.chance(.5);
+    if(b.kind==='cyl'){
+      const wide=D.chance(.5);
+      for(let s=0;s<h;s++)if(D.chance(.78))for(const th of wide?[.35,.79,1.23]:[.79])b.det.push({t:'cw',th,v0:s+.3,v1:s+.66,arch});
+      continue;
+    }
+    const sp=D.range(.42,.72);
+    for(const f of ['l','r']){
+      const L=f==='r'?b.y1-b.y0:b.x1-b.x0;
+      let stair=false;
+      if(h>=2&&L>=2&&D.chance(.2+chaos*.3)){stair=true;b.det.push(makeStair(D,f,L,h,chaos))}
+      const lad=D.chance(.14),pipe=D.chance(.2),side=D.chance(.5);
+      if(lad)b.det.push({t:'ladder',f,u:side?.1:L-.1});
+      if(pipe)b.det.push({t:'pipe',f,u:side?L-.1:.1});
+      if(stair)continue;
+      const cnt=Math.max(1,Math.floor(L/sp)),o=(L-cnt*sp)/2+sp/2;
+      for(let s=0;s<h;s++){
+        if(!D.chance(.82))continue;
+        for(let k=0;k<cnt;k++){const u=o+k*sp;if(b.fall&&b.fall.f===f&&Math.abs(u-b.fall.u)<.32)continue;b.det.push({t:'w',f,u,v0:s+.3,v1:s+.68,arch})}
+      }
+    }
+  }
+  return {seed,P,ents,order:paintOrder(ents)};
+}
+function makeStair(D,f,L,h,chaos){
+  const pts=[],rails=[];let u=.15,v=0,dir=1;const run=L-.3;
+  pts.push([u,v]);
+  for(let s=0;s<h-1;s++){
+    const n=4+Math.round(L*2),rs=[],us=[];
+    for(let i=0;i<n;i++){rs.push(1+(D.f()-.5)*chaos*1.4);us.push(1+(D.f()-.5)*chaos*1.4)}
+    const sr=rs.reduce((a,b)=>a+b),su=us.reduce((a,b)=>a+b);
+    const st=[u,v];
+    for(let i=0;i<n;i++){v+=rs[i]/sr;pts.push([u,v]);u+=dir*run*us[i]/su;pts.push([u,v])}
+    rails.push([[st[0],st[1]+.36],[u,v+.36]]);
+    dir=-dir;
+  }
+  return {t:'stair',f,pts,rails};
+}
+
+/* ---------- painter's order: (gx+gy), then gz, corrected wherever two blocks are separable on an axis ---------- */
+function proj(x,y,z){return[(x-y),(x+y)/2-z]}
+function sbox(e){let a=1e9,b=1e9,c=-1e9,d=-1e9;const zt=e.z1+(e.top?e.top.h+.8:0);
+  for(const x of[e.x0,e.x1])for(const y of[e.y0,e.y1])for(const z of[e.z0,zt]){const p=proj(x,y,z);a=Math.min(a,p[0]);b=Math.min(b,p[1]);c=Math.max(c,p[0]);d=Math.max(d,p[1])}
+  if(e.fall){c+=.5;d+=.5}return[a,b,c,d]}
+function behind(a,b){const e=1e-6;
+  if(a.x1<=b.x0+e)return 1;if(b.x1<=a.x0+e)return -1;
+  if(a.y1<=b.y0+e)return 1;if(b.y1<=a.y0+e)return -1;
+  if(a.z1<=b.z0+e)return 1;if(b.z1<=a.z0+e)return -1;return 0}
+function paintOrder(ents){
+  const n=ents.length,bb=ents.map(sbox),adj=ents.map(()=>[]),ind=new Array(n).fill(0);
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    const A=bb[i],B=bb[j];if(A[2]<=B[0]||B[2]<=A[0]||A[3]<=B[1]||B[3]<=A[1])continue;
+    const r=behind(ents[i],ents[j]);if(r===1){adj[i].push(j);ind[j]++}else if(r===-1){adj[j].push(i);ind[i]++}
+  }
+  const cmp=(i,j)=>(ents[i].x0+ents[i].y0)-(ents[j].x0+ents[j].y0)||ents[i].z0-ents[j].z0||i-j;
+  const done=new Array(n).fill(false),out=[];
+  for(let k=0;k<n;k++){
+    let best=-1;for(let i=0;i<n;i++)if(!done[i]&&ind[i]===0&&(best<0||cmp(i,best)<0))best=i;
+    if(best<0)for(let i=0;i<n;i++)if(!done[i]&&(best<0||cmp(i,best)<0))best=i;
+    done[best]=true;out.push(ents[best]);for(const j of adj[best])ind[j]--;
+  }
+  return out;
+}
+
+/* ---------- palettes ---------- */
+const PAL={
+  'Quiet Pixel':{paper:'#f6f3fa',st:'#b7aed0',win:'#4e4176',flag:'#e9a7c4',c:['#c9b8e8','#a996d6','#e2d6f3','#8f7cc4','#d6c6ec']},
+  'Violet Storm':{paper:'#ece8f3',st:'#5a4e78',win:'#ffe29a',flag:'#ffe29a',c:['#6b4fa3','#8a6cc7','#4b3a7a','#b49ae0','#7d5fb8']},
+  'Atelier Noir':{paper:'#eeebe6',st:'#5d5852',win:'#e8c46a',flag:'#c8423a',c:['#3a3632','#57524c','#78716a','#9a928a','#46413c']},
+  'itsrito Greens':{paper:'#f0f5ec',st:'#9db08f',win:'#1f3d2a',flag:'#e3c25a',c:['#7fae7a','#4f8a5b','#a9cf9a','#2f6a45','#c3dcae']},
+  'Dusk Clay':{paper:'#f7efe7',st:'#b9a294',win:'#3e2a2a',flag:'#5c7fa3',c:['#c98b6b','#a8644d','#e0b293','#7a4a3d','#d9a48a']}
+};
+function mix(a,b,t){const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));const A=p(a),B=p(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')}
+
+/* ---------- SVG drawing ---------- */
+const U=40,R2=Math.SQRT2,INK='var(--ink,#1c1a17)';
+let C;
+const r2=v=>String(Math.round(v*100)/100);
+function bnd(x,y){if(x<C.x0)C.x0=x;if(x>C.x1)C.x1=x;if(y<C.y0)C.y0=y;if(y>C.y1)C.y1=y}
+function P(x,y,z){const p=[(x-y)*U,(x+y)*U/2-z*U];bnd(p[0],p[1]);return p}
+const pp=a=>a.map(p=>r2(p[0])+' '+r2(p[1])).join(' L');
+function poly(a,fill,cls){C.o.push(`<path d="M${pp(a)}Z" fill="${fill}"${cls?` class="${cls}"`:''}/>`)}
+function line(a,cls){C.o.push(`<path d="M${pp(a)}" fill="none" class="${cls||'d'}"/>`)}
+function ell(c,rx,ry,fill,cls){bnd(c[0]-rx,c[1]-ry);bnd(c[0]+rx,c[1]+ry);C.o.push(`<ellipse cx="${r2(c[0])}" cy="${r2(c[1])}" rx="${r2(rx)}" ry="${r2(ry)}" fill="${fill}" class="${cls}"/>`)}
+function fp(e,f,u,v){return f==='r'?P(e.x1,e.y0+u,e.z0+v):P(e.x0+u,e.y1,e.z0+v)}
+
+function drawBox(e,F){
+  const{x0,y0,z0,x1,y1,z1}=e;
+  poly([P(x0,y1,z1),P(x1,y1,z1),P(x1,y1,z0),P(x0,y1,z0)],F.left,'s');
+  poly([P(x1,y0,z1),P(x1,y1,z1),P(x1,y1,z0),P(x1,y0,z0)],F.right,'s');
+  poly([P(x0,y0,z1),P(x1,y0,z1),P(x1,y1,z1),P(x0,y1,z1)],F.top,'s');
+}
+function cylBody(cx,cy,z0,z1,r,F){
+  const b=P(cx,cy,z0),t=P(cx,cy,z1),rx=r*R2*U,ry=rx/2;bnd(b[0]-rx,b[1]+ry);bnd(t[0]+rx,t[1]-ry);
+  const L=r2(b[0]-rx),R=r2(b[0]+rx),M=r2(b[0]),bt=r2(b[1]),tt=r2(t[1]),a=`${r2(rx)} ${r2(ry)} 0 0 0`;
+  const body=`M${L} ${tt} L${L} ${bt} A${a} ${R} ${bt} L${R} ${tt}Z`;
+  C.o.push(`<path d="${body}" fill="${F.left}"/>`);
+  C.o.push(`<path d="M${M} ${tt} L${M} ${r2(b[1]+ry)} A${a} ${R} ${bt} L${R} ${tt}Z" fill="${F.right}"/>`);
+  C.o.push(`<path d="${body}" fill="none" class="s"/>`);
+  ell(t,rx,ry,F.top,'s');
+}
+function archPts(e,f,u,a,v0,h){const pts=[fp(e,f,u-a,v0)],vs=v0+h-a;for(let k=0;k<=8;k++){const th=Math.PI-k*Math.PI/8;pts.push(fp(e,f,u+a*Math.cos(th),vs+a*Math.sin(th)))}pts.push(fp(e,f,u+a,v0));return pts}
+function cylPt(e,th,v){return P(e.cx+e.r*Math.cos(th),e.cy+e.r*Math.sin(th),e.z0+v)}
+
+function drawDetail(e,d,F){
+  const h=e.z1-e.z0;
+  switch(d.t){
+    case'w':{const a=.07;if(d.arch)poly(archPts(e,d.f,d.u,a,d.v0,d.v1-d.v0),F.win,'d');
+      else poly([fp(e,d.f,d.u-a,d.v0),fp(e,d.f,d.u+a,d.v0),fp(e,d.f,d.u+a,d.v1),fp(e,d.f,d.u-a,d.v1)],F.win,'d');break}
+    case'cw':{const g=.2,m=d.arch?.06:0;poly([cylPt(e,d.th-g,d.v0),cylPt(e,d.th+g,d.v0),cylPt(e,d.th+g,d.v1-m),cylPt(e,d.th,d.v1+m*.6),cylPt(e,d.th-g,d.v1-m)],F.win,'d');break}
+    case'door':poly(archPts(e,d.f,d.u,d.a,0,d.h),F.win,'d');break;
+    case'ladder':{const a=.05;line([fp(e,d.f,d.u-a,0),fp(e,d.f,d.u-a,h+.25)]);line([fp(e,d.f,d.u+a,0),fp(e,d.f,d.u+a,h+.25)]);
+      for(let v=.15;v<h+.2;v+=.2)line([fp(e,d.f,d.u-a,v),fp(e,d.f,d.u+a,v)]);break}
+    case'pipe':{const a=.03;line([fp(e,d.f,d.u-a,h-.08),fp(e,d.f,d.u-a,0)]);line([fp(e,d.f,d.u+a,h-.08),fp(e,d.f,d.u+a,0)]);
+      for(let v=.4;v<h;v+=.9)line([fp(e,d.f,d.u-.07,v),fp(e,d.f,d.u+.07,v)]);break}
+    case'stair':line(d.pts.map(p=>fp(e,d.f,p[0],p[1])));for(const r of d.rails){line(r.map(p=>fp(e,d.f,p[0],p[1])));
+      line([fp(e,d.f,r[0][0],r[0][1]-.36),fp(e,d.f,r[0][0],r[0][1])]);line([fp(e,d.f,r[1][0],r[1][1]-.36),fp(e,d.f,r[1][0],r[1][1])])}break;
+  }
+}
+function drawFall(e,w){
+  const h=e.z1-e.z0;
+  for(const s of[-.09,.09]){const pts=[];for(let k=0;k<=h*10;k++){const v=h-k/10;pts.push(fp(e,w.f,w.u+s+.035*Math.sin(v*9+w.ph+s*30),Math.max(0,v)))}line(pts)}
+  const c=w.f==='r'?P(e.x1+.36,e.y0+w.u,e.z0):P(e.x0+w.u,e.y1+.36,e.z0);
+  for(let k=0;k<w.rip;k++){const rx=(.12+.11*k)*R2*U;ell(c,rx,rx/2,'none','d')}
+}
+function drawTop(e,F){
+  const t=e.top,cx=(e.x0+e.x1)/2,cy=(e.y0+e.y1)/2,z=e.z1,r=t.r,c=P(cx,cy,z),rx=r*R2*U,ry=rx/2;
+  let apex;
+  const cone=(cc,rrx,hh,fill)=>{const rr=rrx/2;bnd(cc[0],cc[1]-hh);bnd(cc[0]-rrx,cc[1]+rr);
+    C.o.push(`<path d="M${r2(cc[0]-rrx)} ${r2(cc[1])} L${r2(cc[0])} ${r2(cc[1]-hh)} L${r2(cc[0]+rrx)} ${r2(cc[1])} A${r2(rrx)} ${r2(rr)} 0 0 1 ${r2(cc[0]-rrx)} ${r2(cc[1])}Z" fill="${fill}" class="s"/>`)};
+  if(t.t==='rail'){
+    const i=.08,hh=.28,xs=[e.x0+i,e.x1-i],ys=[e.y0+i,e.y1-i],ring=[[xs[0],ys[0]],[xs[1],ys[0]],[xs[1],ys[1]],[xs[0],ys[1]]];
+    for(let k=0;k<4;k++){const a=ring[k],b=ring[(k+1)%4],n=Math.max(1,Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])/.5));
+      for(let j=0;j<n;j++){const x=a[0]+(b[0]-a[0])*j/n,y=a[1]+(b[1]-a[1])*j/n;line([P(x,y,z),P(x,y,z+hh)])}}
+    line(ring.concat([ring[0]]).map(p=>P(p[0],p[1],z+hh)));
+    apex=c;
+  }else if(t.t==='dome'){
+    const ch=r*1.22*U;bnd(c[0],c[1]-ch);bnd(c[0]-rx,c[1]+ry);
+    C.o.push(`<path d="M${r2(c[0]-rx)} ${r2(c[1])} A${r2(rx)} ${r2(ch)} 0 0 1 ${r2(c[0]+rx)} ${r2(c[1])} A${r2(rx)} ${r2(ry)} 0 0 1 ${r2(c[0]-rx)} ${r2(c[1])}Z" fill="${F.top}" class="s"/>`);
+    const st=[c[0],c[1]-ch-.24*U];line([[c[0],c[1]-ch],st]);bnd(st[0],st[1]);
+    C.o.push(`<circle cx="${r2(st[0])}" cy="${r2(st[1])}" r="2.6" style="fill:${INK}"/>`);apex=st;
+  }else if(t.t==='cone'){cone(c,rx,1*U,F.left);apex=[c[0],c[1]-U]}
+  else if(t.t==='spire'){const sr=Math.min(r,.3)*R2*U;cone(c,sr,2*U,F.left);apex=[c[0],c[1]-2*U-3];
+    ell([c[0],c[1]-2*U],3,3,F.top,'d');apex=[c[0],c[1]-2*U-3]}
+  else{ // water tank on legs
+    const l=.22;for(const[a,b]of[[-l,-l],[l,-l],[-l,l],[l,l]])line([P(cx+a,cy+b,z),P(cx+a,cy+b,z+.5)]);
+    line([P(cx+l,cy-l,z),P(cx+l,cy+l,z+.5)]);line([P(cx+l,cy+l,z),P(cx+l,cy-l,z+.5)]);
+    line([P(cx-l,cy+l,z),P(cx+l,cy+l,z+.5)]);line([P(cx+l,cy+l,z),P(cx-l,cy+l,z+.5)]);
+    cylBody(cx,cy,z+.5,z+1,.3,F);const lc=P(cx,cy,z+1);cone(lc,.33*R2*U,.25*U,F.right);apex=[lc[0],lc[1]-.25*U];
+  }
+  if(t.flag){const x=apex[0],y=apex[1],hh=t.t==='rail'?1.1*U:.75*U;line([[x,y],[x,y-hh]]);
+    poly([[x,y-hh],[x+.5*U,y-hh+.14*U],[x,y-hh+.3*U]],F.acc,'d');bnd(x+.5*U,y-hh)}
+}
+function drawBridge(e,F){
+  drawBox(e,F);const hh=.28,z=e.z1;
+  const sides=e.ax?[[e.x0,e.x0],[e.x1,e.x1]]:[[e.y0,e.y0],[e.y1,e.y1]];
+  for(const[s]of sides){const len=e.ax?e.y1-e.y0:e.x1-e.x0,n=Math.max(2,Math.round(len/.5));const at=k=>e.ax?[s,e.y0+len*k/n]:[e.x0+len*k/n,s];
+    for(let k=0;k<=n;k++){const p=at(k);line([P(p[0],p[1],z),P(p[0],p[1],z+hh)])}
+    const a=at(0),b=at(n);line([P(a[0],a[1],z+hh),P(b[0],b[1],z+hh)])}
+}
+function render(m,mode,palKey){
+  C={o:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
+  const fill=mode==='fill',pal=PAL[palKey],Wt='#ffffff';
+  for(const e of m.order){
+    const base=e.ci<0?pal.st:pal.c[e.ci];
+    const F=fill?{top:mix(base,'#ffffff',.28),left:base,right:mix(base,'#000000',.24),win:pal.win,acc:pal.flag}:{top:Wt,left:Wt,right:Wt,win:Wt,acc:Wt};
+    if(e.kind==='cyl')cylBody(e.cx,e.cy,e.z0,e.z1,e.r,F);
+    else if(e.kind==='bridge')drawBridge(e,F);
+    else drawBox(e,F);
+    for(const d of e.det)drawDetail(e,d,F);
+    if(e.fall)drawFall(e,e.fall);
+    if(e.top)drawTop(e,F);
+  }
+  const pad=48,x=C.x0-pad,y=C.y0-pad,w=C.x1-C.x0+pad*2,h=C.y1-C.y0+pad*2;
+  const bg=fill?pal.paper:'#ffffff';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r2(x)} ${r2(y)} ${r2(w)} ${r2(h)}" preserveAspectRatio="xMidYMid meet">`+
+    `<style>.s,.d{stroke:${INK};stroke-linejoin:round;stroke-linecap:round}.s{stroke-width:2.2}.d{stroke-width:1.1}</style>`+
+    `<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${bg}"/>`+C.o.join('')+`</svg>`;
+  return{svg,w,h};
+}
+
+/* ---------- page ---------- */
+function dailySeed(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function initUI(){
+  const $=id=>document.getElementById(id);
+  const S={seed:'',daily:false,mode:'line',pal:'Quiet Pixel',height:.5,chaos:.35,model:null,out:null};
+  const today=new Date(),dseed=dailySeed(today),dlabel=`daily, ${MON[today.getMonth()]} ${today.getDate()}`;
+  const okSeed=s=>typeof s==='string'&&/^[A-Za-z0-9-]{1,32}$/.test(s);
+  for(const k of Object.keys(PAL)){const o=document.createElement('option');o.value=o.textContent=k;$('pal').appendChild(o)}
+  let dl=null;try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(x=>{dl=x}).catch(()=>{})}catch(e){}
+  let tt;const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1800)};
+
+  function draw(){
+    S.out=render(S.model,S.mode==='fill'?'fill':'line',S.pal);
+    $('art').innerHTML=S.out.svg;
+    document.documentElement.style.setProperty('--paper',S.mode==='fill'?PAL[S.pal].paper:'#ffffff');
+  }
+  function build(){
+    S.model=generate(S.seed,S.height,S.chaos);
+    $('tname').textContent=towerName(S.seed);
+    $('plateSeed').textContent=S.daily?dlabel:'seed '+S.seed;
+    if(document.activeElement!==$('seed'))$('seed').value=S.daily?dlabel:S.seed;
+    draw();
+  }
+  function setSeed(s,daily){
+    S.seed=s;S.daily=daily;
+    try{const u=new URL(location.href);u.searchParams.delete('seed');u.hash=daily?'':s;history.replaceState(null,'',u)}catch(e){try{location.hash=daily?'':s}catch(_){}}
+    build();
+  }
+  function fresh(){const a=new Uint32Array(1);crypto.getRandomValues(a);setSeed(a[0].toString(36).padStart(6,'0').slice(-6),false)}
+  function readSeed(){let s=null;try{s=new URLSearchParams(location.search).get('seed')}catch(e){}
+    if(!okSeed(s))s=decodeURIComponent((location.hash||'').slice(1));return okSeed(s)?s:null}
+
+  $('new').onclick=fresh;
+  $('seed').addEventListener('focus',e=>{e.target.value=S.seed;e.target.select()});
+  $('seed').addEventListener('blur',e=>{e.target.value=S.daily?dlabel:S.seed});
+  $('seed').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=e.target.value.trim().replace(/\s+/g,'-');
+    if(okSeed(v)){setSeed(v,v===dseed);e.target.blur()}else toast('Seeds use letters, numbers and hyphens')}});
+  $('copy').onclick=()=>{const base=location.href.split('#')[0].split('?')[0],url=base+'?seed='+encodeURIComponent(S.seed);
+    const fb=()=>{const i=$('seed');i.focus();i.value=url;i.select();toast('Link selected, copy it from the field')};
+    try{navigator.clipboard.writeText(url).then(()=>toast('Link copied'),fb)}catch(e){fb()}};
+  let raf=0;const regen=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{S.height=+$('height').value;S.chaos=+$('chaos').value;build()})};
+  $('height').oninput=regen;$('chaos').oninput=regen;
+  const setMode=m=>{S.mode=m;$('mLine').setAttribute('aria-pressed',m==='line');$('mFill').setAttribute('aria-pressed',m==='fill');$('pal').disabled=m!=='fill';draw()};
+  $('mLine').onclick=()=>setMode('line');$('mFill').onclick=()=>setMode('fill');
+  $('pal').onchange=e=>{S.pal=e.target.value;draw()};
+
+  async function save(name,blob){
+    if(dl){try{await dl.save({filename:name,data:blob});toast('Saved '+name)}catch(e){toast(e&&e.code==='declined'?'Save cancelled':'Saving is not available in this view')}return}
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  }
+  const suffix=()=>S.mode==='fill'?'fill':'linework';
+  $('svgx').onclick=()=>save(`isoline-${S.seed}-${suffix()}.svg`,new Blob([S.out.svg],{type:'image/svg+xml'}));
+  $('png').onclick=()=>{
+    const{w,h}=S.out,k=3000/Math.max(w,h),cw=Math.round(w*k),ch=Math.round(h*k);
+    const src=S.out.svg.split(INK).join('#1c1a17').replace('<svg ',`<svg width="${cw}" height="${ch}" `);
+    const img=new Image(),url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'}));
+    img.onload=()=>{const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;const g=cv.getContext('2d');
+      g.fillStyle=S.mode==='fill'?PAL[S.pal].paper:'#ffffff';g.fillRect(0,0,cw,ch);g.drawImage(img,0,0,cw,ch);URL.revokeObjectURL(url);
+      cv.toBlob(b=>b?save(`isoline-${S.seed}-${suffix()}.png`,b):toast('PNG export failed, try SVG'),'image/png')};
+    img.onerror=()=>{URL.revokeObjectURL(url);toast('PNG export failed, try SVG')};img.src=url;
+  };
+  document.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.target.closest('input,select,button,textarea')){e.preventDefault();fresh()}});
+  window.addEventListener('hashchange',()=>{const s=readSeed();if(s&&s!==S.seed){S.seed=s;S.daily=s===dseed;build()}});
+  const s0=readSeed();if(s0)setSeed(s0,s0===dseed);else setSeed(dseed,true);
+}
+if(typeof document!=='undefined')initUI();
+</script>
+
+</body></html>

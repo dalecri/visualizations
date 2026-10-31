@@ -1,6 +1,6 @@
 # Visualizations
 
-Ten visual generators and scenes in one repo, each in its own folder exactly as published:
+Eleven visual generators and scenes in one repo, each in its own folder exactly as published:
 
 `heycristobal.com/visualizations/<folder>/`
 
@@ -15,11 +15,12 @@ Ten visual generators and scenes in one repo, each in its own folder exactly as 
 | ASCII Wallpaper Generator | [ASCII-Wallpaper/](ASCII-Wallpaper/) | Seeded procedural ASCII landscape wallpapers with PNG export. |
 
 
-| Soft Gradient | [soft-gradient-generator/](soft-gradient-generator/) | Blurred gradient backgrounds, downloadable as PNG. |
+| Soft Gradient Studio | [soft-gradient-generator/](soft-gradient-generator/) | Drag colour points, blend layers, export soft gradients as PNG. |
 | GLYPHFIELD | [glyphfield/](glyphfield/) | Seeded DOS-tile generative art: six seeded weavers (Kaleidoscope Garden, Circuit Ruins, Horizon, The Deep, Tapestry, Life Bloom), seven palettes, a ~90 ms DOS tick, PNG export at 4x and copy-as-text. |
 | Pixel Monster Creator | [pixel-monster-creator/](pixel-monster-creator/) | Generate cute, soft pixel monsters in the browser. |
 | Typographic Weather Loom | [typographic-weather-loom/](typographic-weather-loom/) | Weather rendered as woven typography. |
 | Gameboy About Me | [Gameboy-about-me/](Gameboy-about-me/) | An about-me page living inside a Game Boy. |
+| Iso Line Towers | [iso-line-towers/](iso-line-towers/) | Seeded isometric line-art towers; export the linework for hand-colouring, or flat-fill from built-in palettes. |
 
 ## Adding a project
 
