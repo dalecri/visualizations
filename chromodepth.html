@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CHROMODEPTH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --page:#14101C; --surface:#2A2233; --surface-2:#251F2D; --line:#3D3448;
+    --muted:#9B8FA8; --text:#EDE8F5; --moon:#B9A9D9;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--page); color:var(--text);
+    font:12px/1.4 'Space Mono',ui-monospace,Menlo,monospace;
+    min-height:100dvh; display:flex; flex-direction:column;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    width:100%; max-width:1232px; margin:0 auto; padding:14px 16px 12px;
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px 6px;
+  }
+  h1{
+    margin:0 auto 0 0; font-size:13px; font-weight:700; letter-spacing:.22em; white-space:nowrap;
+    padding-right:10px;
+  }
+  h1 .r{color:#FF2A36} h1 .b{color:#4A6BFF}
+  .grp{display:inline-flex; align-items:center; gap:4px}
+  button,select,input[type=text]{
+    font:inherit; color:var(--text); background:var(--surface-2);
+    border:1px solid var(--line); border-radius:8px; height:30px; padding:0 8px;
+    transition:background .15s, border-color .15s, color .15s;
+  }
+  button{cursor:pointer; white-space:nowrap}
+  button:hover,select:hover{background:var(--surface)}
+  button:active{transform:translateY(1px)}
+  :focus-visible{outline:2px solid var(--moon); outline-offset:2px}
+  select{cursor:pointer; padding-right:6px}
+  input[type=text]{width:11ch; min-width:0}
+  .dice{width:30px; padding:0; display:inline-grid; place-items:center}
+  .dice svg{display:block}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface-2)}
+  .seg button{border:0; border-radius:0; background:transparent; color:var(--muted); height:28px}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button:hover{color:var(--text)}
+  [aria-pressed=true]{background:var(--moon)!important; color:#14101C!important; border-color:var(--moon)}
+  .seg [aria-pressed=true]{border-color:var(--line)}
+  label.rng{display:inline-flex; align-items:center; gap:8px; height:30px; padding:0 10px;
+    border:1px solid var(--line); border-radius:8px; background:var(--surface-2); color:var(--muted)}
+  input[type=range]{width:72px; accent-color:var(--moon); margin:0}
+  main{flex:1; display:grid; place-items:center; padding:0 16px; min-height:0}
+  .frame{
+    width:100%; max-width:min(1100px, calc((100dvh - 132px) * 16 / 9));
+    min-width:min(100%, 320px);
+    border:1px solid var(--line); border-radius:6px; padding:4px; background:#0B0812;
+  }
+  canvas{
+    display:block; width:100%; height:auto; aspect-ratio:16/9; border-radius:2px;
+    image-rendering:crisp-edges; image-rendering:pixelated;
+    touch-action:none; cursor:crosshair;
+  }
+  .frame:fullscreen{max-width:none; border:0; border-radius:0; padding:0; background:#000; display:grid; place-items:center}
+  .frame:fullscreen canvas{width:min(100vw, 177.78vh); border-radius:0}
+  footer{padding:12px 16px 16px; text-align:center; color:var(--muted); font-size:11px}
+  @media (max-width:520px){
+    header{padding:12px 12px 10px}
+    h1{flex-basis:100%}
+    main{padding:0 12px; place-items:start center}
+    input[type=text]{width:11ch}
+    input[type=range]{width:74px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="r">CHROMO</span><span class="b">DEPTH</span></h1>
+  <span class="grp">
+    <select id="mood" aria-label="Mood"></select>
+    <button class="dice" id="moodDice" aria-label="Random mood" title="Random mood"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><g fill="currentColor"><rect x="3.5" y="3.5" width="2" height="2"/><rect x="8.5" y="8.5" width="2" height="2"/><rect x="6" y="6" width="2" height="2"/></g></svg></button>
+  </span>
+  <span class="grp">
+    <input type="text" id="seed" aria-label="Seed" placeholder="seed" spellcheck="false" autocomplete="off" maxlength="32">
+    <button class="dice" id="seedDice" aria-label="Random seed" title="Random seed"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><g fill="currentColor"><rect x="3.5" y="3.5" width="2" height="2"/><rect x="8.5" y="3.5" width="2" height="2"/><rect x="6" y="6" width="2" height="2"/><rect x="3.5" y="8.5" width="2" height="2"/><rect x="8.5" y="8.5" width="2" height="2"/></g></svg></button>
+  </span>
+  <span class="seg" role="group" aria-label="Ground">
+    <button data-ground="night">Night</button><button data-ground="paper">Paper</button>
+  </span>
+  <span class="seg" role="group" aria-label="Direction">
+    <button data-dir="red">Red forward</button><button data-dir="blue">Blue forward</button>
+  </span>
+  <label class="rng">Intensity <input type="range" id="intensity" min="0" max="100" step="1"></label>
+  <button id="drift">Drift</button>
+  <button id="save">Save PNG</button>
+  <button id="full">Fullscreen</button>
+</header>
+<main>
+  <div class="frame" id="frame"><canvas id="view" width="960" height="540" role="img" aria-label="Generated chromostereopsis pixel scene"></canvas></div>
+</main>
+<footer>Rest your eyes — depth is doing the work.</footer>
+
+<script>
+(() => {
+'use strict';
+
+/* ───────────────────────── GRID ─────────────────────────
+   The scene lives on a 240x135 grid of chunky pixels. Each depth layer is
+   generated M pixels wider than the view on every side so layers can slide
+   against each other without showing an edge. The visible canvas has a 4x
+   backing store (960x540): every chunky pixel is a crisp 4x4 block, and a
+   layer can sit a quarter of a chunky pixel off its neighbours. */
+const VW = 240, VH = 135, M = 8, GW = VW + M * 2, GH = VH + M * 2, S = 4;
+const FAR = 0, MID = 1, NEAR = 2;
+
+/* ───────────────────── FAMILY DISCIPLINE ─────────────────────
+   A layer never stores a colour. It stores a SHADE STEP, 1..5 (0 = empty):
+     1 whisper · 2 quiet · 3 body (the pure saturated hue) · 4 strong · 5 the one hot highlight
+   The step only becomes a colour at paint time, through the family that the
+   layer's depth role is wearing right now:
+     Red forward : FAR = blue,  MID = violet, NEAR = red
+     Blue forward: FAR = red,   MID = violet, NEAR = blue
+   So a scene element cannot cross families, there is no way to write
+   "a red pixel" into the FAR layer. Swapping Direction or Ground re-colours
+   the very same grid. On Paper the ramp runs pale -> deep instead of
+   deep -> light, so step 1 is always the one closest to the ground. */
+const PAL = {
+  night: {
+    ground: '#06051A',
+    blue:   ['#15105E', '#1F1FB4', '#2A3CFF', '#5C8DFF', '#A8D4FF'],
+    violet: ['#33105C', '#63189E', '#A021D9', '#D940D0', '#FF7FE0'],
+    red:    ['#5A0010', '#A80016', '#FF1420', '#FF5136', '#FF9A1F'],
+  },
+  paper: {
+    ground: '#F3E8CE',
+    blue:   ['#B9C6EE', '#6F8DF2', '#1F36F0', '#151A9A', '#00A2FF'],
+    violet: ['#D9B8E6', '#B36AD6', '#9320CC', '#561390', '#FF2BB8'],
+    red:    ['#F2B6A6', '#F06A5A', '#EE1220', '#9C0014', '#FF6A00'],
+  },
+};
+const familyOf = (role, dir) =>
+  role === MID ? 'violet' : (role === NEAR) === (dir === 'red') ? 'red' : 'blue';
+
+/* ───────────────────────── SEED ───────────────────────── */
+function hashStr(s) {
+  let h = 1779033703 ^ s.length;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ───────────────────── PIXEL TOOLKIT ───────────────────── */
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// Ordered dither: true for a fraction t of pixels. t = .5 is a plain checker.
+const dz = (x, y, t) => BAYER[((y & 3) << 2) | (x & 3)] < t * 16;
+
+class Layer {
+  constructor() { this.b = new Uint8Array(GW * GH); this.mask = null; this.flip = false; }
+  // View coordinates: (0,0) is the top-left visible pixel, negatives are margin.
+  set(x, y, s) {
+    x = Math.floor(x); y = Math.floor(y);
+    if (this.flip) x = VW - 1 - x;
+    const gx = x + M, gy = y + M;
+    if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) return;
+    const i = gy * GW + gx;
+    this.b[i] = s;
+    if (this.mask) this.mask[i] = 0;
+  }
+  get(x, y) {
+    x = Math.floor(x); y = Math.floor(y);
+    if (this.flip) x = VW - 1 - x;
+    const gx = x + M, gy = y + M;
+    if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) return 0;
+    return this.b[gy * GW + gx];
+  }
+  rect(x, y, w, h, s) {
+    x = Math.round(x); y = Math.round(y);
+    const fn = typeof s === 'function' ? s : null;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const v = fn ? fn(x + i, y + j, i, j) : s;
+      if (v) this.set(x + i, y + j, v);
+    }
+  }
+  // s: shade, or (dx, dy, x, y) => shade | 0 to skip
+  disc(cx, cy, r, s) {
+    cx = Math.round(cx); cy = Math.round(cy);
+    const R = Math.ceil(r), lim = r * r + r * 0.6, fn = typeof s === 'function' ? s : null;
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      if (dx * dx + dy * dy > lim) continue;
+      const v = fn ? fn(dx, dy, cx + dx, cy + dy) : s;
+      if (v) this.set(cx + dx, cy + dy, v);
+    }
+  }
+  line(x0, y0, x1, y1, s) {
+    x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let e = dx + dy;
+    for (;;) {
+      this.set(x0, y0, s);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * e;
+      if (e2 >= dy) { e += dy; x0 += sx; }
+      if (e2 <= dx) { e += dx; y0 += sy; }
+    }
+  }
+  // Fill under a height profile h[] (one top-y per grid column) down to yb.
+  // fn(x, y, depthBelowTop, gx) => shade | 0
+  field(h, yb, fn) {
+    for (let gx = 0; gx < GW; gx++) {
+      const x = gx - M, top = h[gx];
+      const bot = typeof yb === 'function' ? yb(x, gx) : yb;
+      for (let y = top; y <= bot; y++) {
+        const v = typeof fn === 'function' ? fn(x, y, y - top, gx) : fn;
+        if (v) this.set(x, y, v);
+      }
+    }
+  }
+}
+
+// Height profiles, indexed by grid column (view x + M).
+function smooth(R, base, amp, f) {
+  const p1 = R() * 6.283, p2 = R() * 6.283, p3 = R() * 6.283, f1 = f * (0.7 + R() * 0.6);
+  const h = new Array(GW);
+  for (let i = 0; i < GW; i++)
+    h[i] = Math.round(base + amp * (Math.sin(i * f1 + p1) * 0.6 + Math.sin(i * f1 * 2.3 + p2) * 0.28 + Math.sin(i * f1 * 4.7 + p3) * 0.12));
+  return h;
+}
+function jagged(R, base, amp, rough) {
+  const n = 257, a = new Float32Array(n);
+  a[0] = (R() - 0.5) * amp; a[n - 1] = (R() - 0.5) * amp;
+  for (let step = n - 1, sc = amp; step > 1; step >>= 1, sc *= rough) {
+    const half = step >> 1;
+    for (let i = half; i < n; i += step) a[i] = (a[i - half] + a[i + half]) / 2 + (R() - 0.5) * sc;
+  }
+  const h = new Array(GW);
+  for (let i = 0; i < GW; i++) h[i] = Math.round(base + a[i]);
+  return h;
+}
+
+/* ───────────────────── FAR BAND PARTS ───────────────────── */
+// Sky: step 1 only, dithered denser toward the horizon in 8 hard bands.
+function sky(sc, yh, glow) {
+  const L = sc.far;
+  for (let y = -M; y < VH + M; y++) {
+    const t = Math.min(1, (y + M) / (yh + M));
+    const v = Math.floor(Math.pow(t, 1.8) * glow * 8 + 0.5) / 8;
+    if (v <= 0) continue;
+    for (let x = -M; x < VW + M; x++) if (dz(x, y, v)) L.set(x, y, 1);
+  }
+}
+function sunDisc(sc, cx, cy, r, kind, U) {
+  const L = sc.far;
+  sc.discX = L.flip ? VW - 1 - cx : cx;
+  if (kind === 'sun') {
+    // Retro sun: slits opening toward the bottom, light dithered into the top.
+    const slit = dy => {
+      const u = dy / r;
+      return (u > 0.20 && u < 0.27) || (u > 0.42 && u < 0.53) || (u > 0.66 && u < 0.80);
+    };
+    L.disc(cx, cy, r, (dx, dy, x, y) => {
+      if (slit(dy)) return 0;
+      const u = dy / r;
+      if (u < -0.35) return dz(x, y, 0.5) ? 5 : 4;
+      if (u > 0.55) return dz(x, y, 0.5) ? 3 : 4;
+      return 4;
+    });
+  } else {
+    L.disc(cx, cy, r, (dx, dy, x, y) => {
+      const lit = (dx + r * 0.3) * (dx + r * 0.3) + (dy + r * 0.3) * (dy + r * 0.3) < r * r * 0.34;
+      if (lit) return dz(x, y, 0.25) ? 5 : 4;
+      if (dx > r * 0.42) return dz(x, y, 0.5) ? 3 : 4;
+      return 4;
+    });
+    const n = U.ri(3, 5);
+    for (let i = 0; i < n; i++) {
+      const a = U.R() * 6.283, d = U.R() * r * 0.62;
+      L.disc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 0.8 + U.R() * r * 0.14, (dx, dy, x, y) => (L.get(x, y) >= 4 ? 3 : 0));
+    }
+  }
+}
+function clouds(sc, yh, n, U) {
+  const L = sc.far;
+  for (let k = 0; k < n; k++) {
+    const y = yh - U.ri(6, 34), len = U.ri(22, 70), x = U.ri(-M, VW - 10), th = U.ri(1, 2);
+    for (let j = 0; j < th; j++) {
+      const inset = j * U.ri(3, 9);
+      for (let i = inset; i < len - inset; i++) {
+        const e = Math.min(i - inset, len - inset - 1 - i) / 7;
+        if (e >= 1 || dz(x + i, y + j, e)) L.set(x + i, y + j, 2);
+      }
+    }
+  }
+}
+// Stars go on last and only into open sky (steps 0/1), so nothing else in FAR
+// is ever overwritten by the twinkle pass.
+function stars(sc, yMax, n, U) {
+  const L = sc.far, open = (x, y) => L.get(x, y) <= 1;
+  for (let i = 0; i < n; i++) {
+    const x = U.ri(-M, VW + M - 1), y = Math.floor(-M + Math.pow(U.R(), 1.3) * (yMax + M));
+    const s = U.pick([3, 3, 3, 4, 4, 5]);
+    if (!open(x, y)) continue;
+    L.set(x, y, s);
+    sc.stars.push({ x: L.flip ? VW - 1 - x : x, y, s, ph: U.ri(0, 30), per: U.ri(5, 11) });
+  }
+  const sp = U.ri(3, 6);
+  for (let i = 0; i < sp; i++) {                       // a few 2px sparkles
+    const x = U.ri(2, VW - 4), y = U.ri(2, Math.max(4, yMax - 14));
+    if (!(open(x, y) && open(x + 1, y) && open(x, y + 1) && open(x + 1, y + 1))) continue;
+    for (let j = 0; j < 2; j++) for (let k = 0; k < 2; k++) {
+      L.set(x + k, y + j, 5);
+      sc.stars.push({ x: L.flip ? VW - 1 - (x + k) : x + k, y: y + j, s: 5, ph: i * 7, per: 9 });
+    }
+  }
+}
+
+/* ───────────────────── MID BAND PARTS ───────────────────── */
+// Water: a checker gradient of steps 1 and 2, plus a list of glints that the
+// animation pass crawls sideways. sc.mid.mask remembers which pixels are still
+// open water after everything else in MID has been drawn over it.
+function water(sc, y0, y1, U) {
+  const L = sc.mid;
+  for (let y = y0; y <= y1; y++) {
+    const t = (y - y0) / Math.max(1, y1 - y0);
+    const v = Math.round((0.12 + 0.76 * t) * 8) / 8;
+    for (let x = -M; x < VW + M; x++) {
+      L.set(x, y, dz(x, y, v) ? 2 : 1);
+      const ax = L.flip ? VW - 1 - x : x;
+      L.mask[(y + M) * GW + ax + M] = 1;
+    }
+  }
+  const n = Math.round((y1 - y0 + 1) * 3.2);
+  for (let i = 0; i < n; i++) {
+    const y = U.ri(y0 + 1, y1), d = (y - y0) / Math.max(1, y1 - y0);
+    const column = U.ch(0.55);                           // reflection under the disc
+    const spread = 5 + d * 22;
+    let ax = column ? Math.round(sc.discX + (U.R() + U.R() + U.R() - 1.5) * spread) : U.ri(-M, VW + M - 1);
+    const len = 1 + U.ri(0, 1 + Math.floor(d * 4));
+    const s = column ? (U.ch(0.3) ? 5 : 4) : U.pick([3, 3, 4]);
+    sc.glints.push({ x: ax, y, len, s });
+  }
+}
+function pineTiny(L, x, base, h, s) {
+  for (let i = 0; i < h; i++) {
+    const half = Math.floor(i * 0.42 + 0.3);
+    L.rect(x - half, base - h + i, half * 2 + 1, 1, s);
+  }
+  L.set(x, base, s);
+}
+function roundTree(L, x, base, r, s) {
+  L.rect(x, base - 2, 1, 3, s);
+  L.disc(x, base - r - 2, r, s);
+}
+
+/* ───────────────────── NEAR BAND PARTS ───────────────────── */
+function ground(L, h) {
+  L.field(h, VH + M, (x, y, d) => (d === 0 ? 4 : d < 2 ? 3 : d < 6 ? (dz(x, y, 0.5) ? 3 : 2) : 2));
+}
+function blade(L, x, base, h, lean, s, w = 1) {
+  for (let i = 0; i <= h; i++) {
+    const t = i / h, xx = Math.round(x + lean * t * t), ww = Math.max(1, Math.round(w * (1 - t)));
+    L.rect(xx - (ww >> 1), base - i, ww, 1, s);
+  }
+}
+function grass(L, h, n, U, tall = 11) {
+  for (let i = 0; i < n; i++) {
+    const x = U.ri(-M, VW + M - 1);
+    blade(L, x, h[x + M] + 1, U.ri(3, tall), U.ri(-4, 4), U.pick([3, 3, 4, 2]));
+  }
+}
+function leaf(L, x, y, dir, len) {
+  for (let i = 0; i <= len; i++) {
+    const t = i / len, th = Math.max(1, Math.round(Math.sin(t * Math.PI) * len * 0.24));
+    const yy = y - Math.round(Math.sin(t * Math.PI * 0.8) * len * 0.45);
+    L.rect(x + dir * i, yy, 1, th, 3);
+    if (th > 1) L.set(x + dir * i, yy + th - 1, 2);
+  }
+}
+// One flower routine at every size, from a 3px dot to the cropped giant.
+function flower(L, U, x, base, h, r, kind, lean) {
+  const hx = Math.round(x + lean), hy = base - h, sw = r >= 14 ? 4 : r >= 6 ? 2 : 1;
+  for (let i = 0; i <= h; i++) {
+    const t = i / h, xx = Math.round(x + lean * t * t) - (sw >> 1);
+    L.rect(xx, base - i, sw, 1, 2);
+    if (sw >= 2) L.set(xx, base - i, 3);
+  }
+  if (r >= 4) {
+    const n = r >= 14 ? 3 : U.ri(1, 2);
+    for (let k = 0; k < n; k++) {
+      const t = 0.15 + 0.5 * U.R();
+      leaf(L, Math.round(x + lean * t * t), base - Math.round(h * t), k % 2 ? 1 : -1, Math.round(r * (0.9 + U.R() * 0.7)));
+    }
+  }
+  if (r <= 2) {
+    if (r === 2) L.rect(hx - 1, hy - 1, 3, 3, 3);
+    L.set(hx - r, hy, 3); L.set(hx + r, hy, 3); L.set(hx, hy - r, 3); L.set(hx, hy + r, 3);
+    L.set(hx, hy, 5);
+    return;
+  }
+  if (kind === 0) {                                      // daisy
+    const n = r >= 10 ? 9 : r >= 5 ? 7 : 5, rot = U.R() * 6.283, pr = Math.max(1, r * 0.38), dist = r * 0.64;
+    for (let k = 0; k < n; k++) {
+      const a = rot + (k * 6.283) / n;
+      L.disc(hx + Math.cos(a) * dist, hy + Math.sin(a) * dist, pr, 3);
+    }
+    if (r >= 6) for (let k = 0; k < n; k++) {
+      const a = rot + (k * 6.283) / n;
+      L.disc(hx + Math.cos(a) * dist * 1.05, hy + Math.sin(a) * dist * 1.05, pr * 0.5, (dx, dy, X, Y) => (dz(X, Y, 0.5) ? 4 : 0));
+    }
+    L.disc(hx, hy, Math.max(1, r * 0.36), 2);
+    L.disc(hx, hy, Math.max(0.6, r * 0.22), 5);
+  } else if (kind === 1) {                               // tulip
+    for (let dy = -r; dy <= r; dy++) {
+      const t = (dy + r) / (2 * r);
+      const half = Math.round(r * 0.78 * Math.max(0, Math.sin(Math.PI * Math.min(1, 0.3 + t * 0.72))));
+      for (let dx = -half; dx <= half; dx++) {
+        const a = Math.abs(dx);
+        if (t < 0.2 && a > half * 0.22 && a < half * 0.62) continue;       // notches make three tips
+        L.set(hx + dx, hy + dy, dx < -half * 0.3 ? (dz(hx + dx, hy + dy, 0.5) ? 4 : 3) : dx > half * 0.45 ? 2 : 3);
+      }
+    }
+  } else {                                               // poppy
+    L.disc(hx, hy, r, (dx, dy, X, Y) => (dx + dy > r * 0.55 ? (dz(X, Y, 0.5) ? 2 : 3) : dx + dy < -r * 0.7 ? (dz(X, Y, 0.5) ? 4 : 3) : 3));
+    L.disc(hx, hy, Math.max(1, r * 0.3), 1);
+    L.disc(hx, hy, Math.max(0.6, r * 0.13), 5);
+  }
+}
+function rock(L, x, base, w, h) {
+  for (let dy = 0; dy < h; dy++) {
+    const half = Math.round((w / 2) * Math.sqrt(1 - (dy / h) * (dy / h)));
+    for (let dx = -half; dx <= half; dx++)
+      L.set(x + dx, base - dy, dy < 2 ? 2 : dx < -half * 0.2 && dy > h * 0.4 ? (dz(x + dx, base - dy, 0.5) ? 4 : 3) : 3);
+  }
+}
+function fence(L, U, x0, x1, top, gap) {
+  for (const ry of [top + 4, top + 12]) { L.rect(x0, ry, x1 - x0, 1, 3); L.rect(x0, ry + 1, x1 - x0, 1, 2); }
+  const posts = [];
+  for (let x = x0; x < x1; x += gap) {
+    if (posts.length && U.ch(0.08)) continue;            // a missing picket
+    const t = top + U.ri(-1, 1);
+    L.rect(x, t, 3, VH + M - t, 3);
+    L.rect(x, t, 1, VH + M - t, 4);
+    L.set(x + 1, t - 1, 3);
+    posts.push(x);
+  }
+  return posts;
+}
+const CAT_S = [
+  '..#.....#..', '..##...##..', '..#######..', '..#######..', '..#######..', '...#####...', '...#####...',
+  '..#######..', '.#########.', '.#########.', '.#########.', '###########', '###########', '###########'];
+const CAT_L = [
+  '...#.........#...', '...##.......##...', '...###.....###...', '...###########...', '...###########...',
+  '...###########...', '...###########...', '....#########....', '.....#######.....', '....#########....',
+  '...###########...', '..#############..', '..#############..', '.###############.', '.###############.',
+  '.###############.', '.###############.', '#################', '#################', '#################', '#################'];
+// Cat seen from behind, sitting. cx = centre column, baseY = the row it sits on.
+function cat(L, cx, baseY, big) {
+  const m = big ? CAT_L : CAT_S, w = m[0].length, h = m.length, x0 = cx - (w >> 1), y0 = baseY - h + 1;
+  for (let r = 0; r < h; r++) {
+    let first = true;
+    for (let c = 0; c < w; c++) if (m[r][c] === '#') { L.set(x0 + c, y0 + r, first ? 4 : 3); first = false; }
+  }
+  if (big) {                                             // tail hangs down the side, curls out
+    L.rect(x0 + w - 3, baseY + 1, 2, 9, 3);
+    L.rect(x0 + w - 2, baseY + 10, 2, 2, 3); L.rect(x0 + w, baseY + 11, 2, 2, 3); L.rect(x0 + w + 2, baseY + 10, 2, 2, 3);
+    L.rect(x0 + w + 3, baseY + 8, 2, 2, 3);
+  } else {
+    L.rect(x0 + w - 2, baseY + 1, 1, 5, 3);
+    L.set(x0 + w - 1, baseY + 6, 3); L.set(x0 + w, baseY + 6, 3); L.set(x0 + w + 1, baseY + 5, 3);
+  }
+}
+function pineNear(L, x, base, h) {
+  L.rect(x - 1, base - 6, 3, 8, 2);
+  const tiers = Math.max(2, Math.floor(h / 8));
+  for (let j = 0; j < tiers; j++) {
+    const top = base - h + j * 7;
+    for (let k = 0; k < 10; k++) {
+      const half = Math.round(1 + j * 2.2 + k * 0.85);
+      for (let dx = -half; dx <= half; dx++) {
+        if (k === 9 && (dx & 1)) continue;
+        L.set(x + dx, top + k, k < 2 && j > 0 ? 2 : dx > half - 2 ? 4 : 3);
+      }
+    }
+  }
+}
+// Oversized, frame-cropped pine. Canonical: hugging the left edge.
+function bigPine(L, U, x, base) {
+  L.rect(x - 3, -M, 7, base + M + 12, 2);
+  L.rect(x + 3, -M, 1, base + M + 12, 3);
+  let y = -M - U.ri(2, 12), w = 12 + U.ri(0, 6);
+  while (y < base - 20) {
+    const th = U.ri(17, 24);
+    for (let i = 0; i < th; i++) {
+      const half = Math.round(w * 0.3 + w * 0.7 * (i / th));
+      for (let dx = -half; dx <= half; dx++) {
+        const tooth = th - i;                             // sawtooth along the bottom of a tier
+        if (tooth <= 3 && ((dx + 400) & 3) >= tooth) continue;
+        L.set(x + dx, y + i, i < 4 ? 2 : dx > half - 3 ? (dz(x + dx, y + i, 0.5) ? 4 : 3) : 3);
+      }
+    }
+    y += th - U.ri(5, 8); w = Math.min(58, w + U.ri(7, 11));
+  }
+}
+// Oversized, frame-cropped post with rope. Returns the rope anchor.
+function bigPost(L, U, x, top, w) {
+  L.rect(x, top, w, VH + M - top, (X, Y, i) => (i < 2 ? 4 : i >= w - 3 ? (dz(X, Y, 0.5) ? 2 : 3) : (i === 5 || i === w - 6) && (Y & 7) !== 3 ? 2 : 3));
+  L.rect(x - 1, top - 3, w + 2, 3, 4);
+  L.rect(x, top - 4, w, 1, 3);
+  const ry = top + U.ri(11, 17);
+  L.rect(x - 1, ry, w + 2, 3, (X, Y, i, j) => (j === 1 ? 5 : 4));
+  return { x: x + w, y: ry + 1 };
+}
+function rope(L, a, b, sag, s) {
+  const n = Math.abs(b.x - a.x);
+  let px = a.x, py = a.y;
+  for (let i = 1; i <= n; i++) {
+    const t = i / n, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t + sag * 4 * t * (1 - t);
+    L.line(px, py, x, y, s); px = x; py = y;
+  }
+}
+// Oversized, frame-cropped house corner with one lit window.
+function houseCorner(L, U, wx, ey) {
+  const roofY = x => ey - (wx + 6 - x) * 0.5;
+  for (let x = -M; x <= wx; x++)
+    for (let y = Math.round(roofY(x)); y < VH + M; y++)
+      L.set(x, y, x >= wx - 1 ? 4 : (y - ey) % 5 === 0 && y > ey ? 2 : 3);
+  for (let x = -M; x <= wx + 6; x++) {
+    const y = Math.round(roofY(x));
+    L.rect(x, y - 4, 1, 4, 4); L.set(x, y, 2);
+  }
+  const ww = 15, wh = 22, x0 = wx - ww - 9, y0 = ey + 16;
+  L.rect(x0 - 1, y0 - 1, ww + 2, wh + 2, 4);
+  L.rect(x0, y0, ww, wh, (X, Y, i, j) => (i === 7 || j === 10 ? 2 : 5));
+  L.rect(x0 - 2, y0 + wh + 1, ww + 4, 2, 4);
+  L.rect(wx - 5, ey + 2, 2, VH + M - ey, 2);             // drainpipe
+  return { x: wx, y: ey + 6 };
+}
+function chimney(L, U, x, base, w, h, pots) {
+  const top = base - h;
+  L.rect(x, top, w, h + 2, (X, Y, i, j) => (j % 4 === 3 ? 2 : i >= w - Math.ceil(w / 3) ? (dz(X, Y, 0.5) ? 2 : 3) : 3));
+  L.rect(x - 1, top - 2, w + 2, 2, 4);
+  for (let p = 0; p < pots; p++) {
+    const px = x + 1 + p * 5;
+    if (px + 3 > x + w) break;
+    L.rect(px, top - 6, 3, 4, 3); L.rect(px, top - 6, 3, 1, 4);
+  }
+  return top - 3;
+}
+function antenna(L, x, base, h) {
+  L.rect(x, base - h, 1, h, 3);
+  for (let i = 0; i < 5; i++) { const half = 7 - i; L.rect(x - half, base - h + 2 + i * 3, half * 2 + 1, 1, i === 0 ? 4 : 3); }
+  L.line(x, base - h + 16, x + 5, base - h + 22, 2);
+  L.set(x, base - h - 1, 5);
+}
+
+/* ───────────────────────── MOODS ─────────────────────────
+   A mood is one function. It draws into sc.far / sc.mid / sc.near in shade
+   steps only, composed as if the oversized near silhouette sits on the LEFT
+   edge (the generator mirrors all three layers for half the seeds).
+   To add a fifth: write MOODS.name = (sc, U) => {...}, the select picks it up. */
+const MOODS = {
+  ridge(sc, U) {
+    const { R, ri, ch } = U, { far, mid, near } = sc;
+    const yh = ri(74, 84), r = ri(17, 25), cx = ri(118, 196);
+    sky(sc, yh, 0.75);
+    sunDisc(sc, cx, yh - ri(16, 30), r, ch(0.7) ? 'sun' : 'moon', U);
+    clouds(sc, yh - 8, ri(1, 3), U);
+    const A = jagged(R, yh - ri(16, 24), 38, 0.55), B = jagged(R, yh - ri(3, 8), 20, 0.6);
+    far.field(A, VH + M, (x, y, d, gx) => {
+      const facing = x < cx ? A[Math.min(GW - 1, gx + 1)] > A[gx] : A[Math.max(0, gx - 1)] > A[gx];
+      return d < 5 && facing ? (dz(x, y, 0.5) ? 3 : 2) : 2;
+    });
+    far.field(B, VH + M, (x, y, d) => (d < 5 ? 3 : d < 11 ? (dz(x, y, 0.5) ? 3 : 2) : 2));
+    stars(sc, yh - 12, ri(45, 75), U);
+
+    const yw0 = yh + ri(3, 6), yw1 = yw0 + ri(12, 18);
+    water(sc, yw0 - 2, yw1 + 5, U);
+    const h1 = smooth(R, yw0 - ri(5, 9), 4, 0.035);
+    mid.field(h1, yw0, 2);
+    for (let x = -M; x < VW + M; x += ri(2, 6)) if (ch(0.8)) pineTiny(mid, x, h1[x + M], ri(4, 9), 3);
+    const h2 = smooth(R, yw1 - ri(0, 3), 4, 0.02);
+    mid.field(h2, VH + M, (x, y, d) => (d === 0 ? 4 : d < 4 ? (dz(x, y, 0.5) ? 4 : 3) : 3));
+    for (let x = -M; x < VW + M; x += ri(6, 16)) if (ch(0.5)) pineTiny(mid, x, h2[x + M], ri(7, 13), 4);
+
+    const g = smooth(R, ri(118, 124), 2.5, 0.03);
+    if (ch(0.55)) pineNear(near, ri(214, 238), g[230 + M] + 2, ri(38, 58));
+    ground(near, g);
+    bigPine(near, U, ri(4, 18), VH);
+    const rk = ri(2, 4);
+    for (let i = 0; i < rk; i++) { const x = ri(70, 205); rock(near, x, g[x + M] + 2, ri(8, 18), ri(4, 9)); }
+    grass(near, g, ri(60, 90), U, 10);
+  },
+
+  coast(sc, U) {
+    const { R, ri, ch } = U, { far, mid, near } = sc;
+    const yh = ri(68, 78), r = ri(14, 22), cx = ri(105, 168);
+    sky(sc, yh, 0.8);
+    sunDisc(sc, cx, yh - ri(6, 22), r, ch(0.7) ? 'moon' : 'sun', U);
+    clouds(sc, yh - 4, ri(2, 4), U);
+    const ix = ri(52, 100), iw = ri(16, 30), ia = ri(6, 12);
+    for (let x = -M; x < VW + M; x++) {                  // far island on the horizon
+      const hgt = Math.round(ia * Math.exp(-((x - ix) / iw) * ((x - ix) / iw)) + (R() < 0.3 ? 1 : 0));
+      if (hgt >= 2) far.rect(x, yh - hgt, 1, hgt + 8, 2);
+    }
+    stars(sc, yh - 6, ri(45, 75), U);
+
+    const yb = ri(106, 114);
+    water(sc, yh, VH + M - 1, U);
+    const x0 = ri(150, 182), rise = ri(18, 32), k = ri(14, 26), nz = smooth(R, 0, 2, 0.09);
+    const top = x => Math.round(yh + 3 - rise * (1 - Math.exp(-(x - x0) / k)) + nz[x + M]);
+    for (let x = x0; x < VW + M; x++) {                  // headland
+      const t = top(x), bot = Math.round(yh + 5 + (x - x0) * 0.32);
+      for (let y = t; y <= bot; y++) mid.set(x, y, y === t ? 4 : y > bot - 4 ? (dz(x, y, 0.5) ? 2 : 3) : y - t > 7 && ((x + y) & 3) === 0 ? 2 : 3);
+    }
+    const lx = Math.min(VW - 12, x0 + ri(22, 44)), ly = top(lx), lh = ri(10, 14);
+    mid.rect(lx, ly - lh, 4, lh + 1, (X, Y, i, j) => (j % 4 === 2 ? 2 : 4));   // lighthouse
+    mid.rect(lx - 1, ly - lh - 3, 6, 1, 4);
+    mid.rect(lx, ly - lh - 2, 4, 2, 5);                                    // the lamp
+    mid.rect(lx + 1, ly - lh - 5, 2, 2, 4);
+    const rn = ri(2, 4);
+    for (let i = 0; i < rn; i++) { const x = ri(90, 200), y = ri(yh + 10, yb - 4), w = ri(3, 8); mid.rect(x, y, w, 2, 3); mid.rect(x + 1, y - 1, Math.max(1, w - 3), 1, 3); }
+
+    const g = smooth(R, yb + ri(6, 10), 2, 0.03);
+    for (let i = 0; i < GW; i++) g[i] -= Math.round(Math.max(0, 70 - (i - M)) * 0.34);   // dune climbs to the left
+    const px = ri(6, 20), pw = ri(17, 23), a = bigPost(near, U, px, ri(18, 40), pw);
+    const p2x = ri(66, 84), p2t = ri(84, 92), p3x = ri(108, 126), p3t = ri(98, 104);
+    near.rect(p2x, p2t, 5, VH + M - p2t, (X, Y, i) => (i === 0 ? 4 : i === 4 ? 2 : 3)); near.rect(p2x - 1, p2t - 1, 7, 1, 4);
+    near.rect(p3x, p3t, 3, VH + M - p3t, (X, Y, i) => (i === 0 ? 4 : 3));
+    rope(near, a, { x: p2x, y: p2t + 4 }, 9, 4);
+    rope(near, { x: p2x + 5, y: p2t + 4 }, { x: p3x, y: p3t + 3 }, 5, 4);
+    ground(near, g);
+    for (let i = 0; i < 9; i++) blade(near, ri(-6, 60), VH + M, ri(34, 78), ri(-10, 34), i % 3 ? 3 : 4, ri(2, 3));
+    for (let c = 0; c < 6; c++) {                        // marram clumps
+      const x = ri(40, 236), n = ri(5, 9);
+      for (let i = 0; i < n; i++) blade(near, x + ri(-3, 3), g[Math.min(GW - 1, Math.max(0, x + M))] + 1, ri(8, 22), ri(-9, 9), U.pick([3, 3, 4]));
+    }
+    grass(near, g, ri(40, 60), U, 8);
+  },
+
+  meadow(sc, U) {
+    const { R, ri, ch, pick } = U, { far, mid, near } = sc;
+    const yh = ri(70, 80), r = ri(18, 26), cx = ri(120, 190);
+    sky(sc, yh, 0.7);
+    sunDisc(sc, cx, yh - ri(8, 24), r, ch(0.8) ? 'sun' : 'moon', U);
+    clouds(sc, yh - 6, ri(2, 4), U);
+    const A = smooth(R, yh - ri(7, 13), 7, 0.02), B = smooth(R, yh - ri(0, 4), 4, 0.03);
+    far.field(A, VH + M, 2);
+    far.field(B, VH + M, (x, y, d) => (d < 3 ? 3 : d < 8 ? (dz(x, y, 0.5) ? 3 : 2) : 2));
+    stars(sc, yh - 14, ri(25, 45), U);
+
+    const yw0 = yh + ri(6, 10), yw1 = yw0 + ri(5, 8);
+    water(sc, yw0 - 2, yw1 + 5, U);
+    const h1 = smooth(R, yw0 - ri(4, 7), 4, 0.03);
+    mid.field(h1, yw0, 2);
+    for (let x = -M; x < VW + M; x += ri(3, 9)) if (ch(0.7)) roundTree(mid, x, h1[x + M], ri(2, 4), 3);
+    const h2 = smooth(R, yw1 + 1, 2.5, 0.015);
+    mid.field(h2, VH + M, (x, y, d) => (d === 0 ? 4 : d < 3 ? (dz(x, y, 0.5) ? 4 : 3) : d > 12 ? (dz(x, y, 0.5) ? 2 : 3) : 3));
+    for (let x = -M; x < VW + M; x += ri(8, 22)) if (ch(0.5)) mid.disc(x, h2[x + M] - 1, ri(2, 3), 4);
+
+    const g = smooth(R, ri(117, 122), 2, 0.03);
+    const ft = ri(92, 99), posts = fence(near, U, ri(44, 68), VW + M, ft, ri(13, 16));
+    if (ch(0.6) && posts.length > 3) {                   // gatepost with a cat on it
+      const x = posts[ri(1, posts.length - 2)];
+      near.rect(x - 1, ft - 5, 5, VH, (X, Y, i) => (i === 0 ? 4 : 3));
+      near.rect(x - 2, ft - 6, 7, 1, 4);
+      cat(near, x + 1, ft - 7, false);
+    }
+    ground(near, g);
+    flower(near, U, ri(22, 40), VH + M, ri(92, 112), ri(19, 25), pick([0, 0, 2]), -ri(22, 40));   // the cropped giant
+    const nm = ri(3, 5);
+    for (let i = 0; i < nm; i++) { const x = ri(58, 232); flower(near, U, x, g[x + M] + 1, ri(18, 40), ri(4, 8), ri(0, 2), ri(-6, 6)); }
+    const ns = ri(9, 15);
+    for (let i = 0; i < ns; i++) { const x = ri(40, 238); flower(near, U, x, g[x + M] + 1, ri(3, 9), ri(1, 2), 0, ri(-1, 1)); }
+    grass(near, g, ri(70, 100), U, 12);
+  },
+
+  rooftop(sc, U) {
+    const { R, ri, ch } = U, { far, mid, near } = sc;
+    const yh = ri(80, 88), r = ri(15, 23), cx = ri(112, 182);
+    sky(sc, yh, 0.8);
+    sunDisc(sc, cx, yh - ri(22, 42), r, ch(0.75) ? 'moon' : 'sun', U);
+    clouds(sc, yh - 10, ri(1, 3), U);
+    for (let x = -M; x < VW + M;) {                      // far skyline
+      const w = ri(5, 14), top = yh - (ch(0.12) ? ri(30, 44) : ri(4, 24));
+      far.rect(x, top, w, VH + M - top, 2);
+      for (let wy = top + 2; wy < yh - 1; wy += 3) for (let wx = x + 1; wx < x + w - 1; wx += 2) if (ch(0.14)) far.set(wx, wy, 3);
+      if (ch(0.2)) far.rect(x + (w >> 1), top - ri(3, 7), 1, 8, 2);
+      x += w + (ch(0.3) ? 1 : 0);
+    }
+    stars(sc, yh - 10, ri(40, 70), U);
+
+    water(sc, yh + 1, yh + 16, U);                       // the river behind the near blocks
+    for (let x = -M, n = 0; x < VW + M; n++) {
+      const w = ri(10, 24), gap = ch(0.3), top = gap ? yh + ri(11, 13) : yh + ri(-16, 6), s = n % 2 ? 3 : 2;
+      mid.rect(x, top, w, VH + M - top, s);
+      mid.rect(x, top, w, 1, 4);
+      if (!gap) {
+        for (let wy = top + 3; wy < VH; wy += 4) for (let wx = x + 2; wx < x + w - 2; wx += 3)
+          if (ch(0.22)) mid.rect(wx, wy, 2, 2, ch(0.2) ? 5 : 4);
+        if (ch(0.22)) { mid.rect(x + 3, top - 5, 6, 4, 3); mid.rect(x + 4, top - 1, 1, 1, 3); mid.rect(x + 7, top - 1, 1, 1, 3); mid.rect(x + 3, top - 6, 6, 1, 4); }
+      } else {
+        for (let tx = x + 2; tx < x + w - 1; tx += ri(4, 6)) roundTree(mid, tx, top, ri(2, 3), 3);
+      }
+      x += w;
+    }
+
+    const gy = ri(110, 117);
+    const wire = houseCorner(near, U, ri(34, 48), ri(22, 38));
+    near.rect(-M, gy, GW, VH + M - gy, (X, Y, i, j) => (j < 2 ? 4 : j < 3 ? 3 : j % 5 === 2 || (X + (Math.floor(j / 5) & 1) * 4) % 8 === 0 ? 1 : 2));
+    const c1 = ri(84, 112), seat = chimney(near, U, c1, gy, 11, ri(18, 26), 0);
+    cat(near, c1 + 5, seat, true);
+    chimney(near, U, ri(146, 168), gy, ri(12, 16), ri(12, 20), ri(1, 3));
+    antenna(near, ri(190, 226), gy, ri(30, 46));
+    if (ch(0.6)) antenna(near, ri(126, 138), gy, ri(18, 24));
+    rope(near, wire, { x: VW + M, y: wire.y + ri(-8, 14) }, ri(8, 16), 2);
+  },
+};
+
+function genScene(seed, mood) {
+  // Every random choice in the scene comes from this one generator.
+  const R = mulberry32(hashStr(seed + '\u0001' + mood));
+  const U = {
+    R,
+    ri: (a, b) => a + Math.floor(R() * (b - a + 1)),
+    pick: a => a[Math.floor(R() * a.length)],
+    ch: p => R() < p,
+  };
+  const sc = { far: new Layer(), mid: new Layer(), near: new Layer(), stars: [], glints: [], discX: 120 };
+  sc.mid.mask = new Uint8Array(GW * GH);
+  const mirror = U.ch(0.5);
+  sc.far.flip = sc.mid.flip = sc.near.flip = mirror;
+  MOODS[mood](sc, U);
+  sc.base = [sc.far.b, sc.mid.b, sc.near.b];
+  sc.work = [new Uint8Array(sc.far.b), new Uint8Array(sc.mid.b), sc.near.b];
+  return sc;
+}
+
+/* ───────────────────────── STATE ───────────────────────── */
+const $ = id => document.getElementById(id);
+const view = $('view'), vctx = view.getContext('2d');
+const state = { seed: 'chromo-001', mood: 'meadow', ground: 'night', dir: 'red', intensity: 0.6, drift: true };
+const moodNames = Object.keys(MOODS);
+try {
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.get('seed')) state.seed = q.get('seed').slice(0, 32);
+  if (moodNames.includes(q.get('mood'))) state.mood = q.get('mood');
+  if (q.get('ground') === 'paper') state.ground = 'paper';
+  if (q.get('dir') === 'blue') state.dir = 'blue';
+} catch (e) {}
+
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+const motionOK = () => state.drift && !reduced.matches;
+
+const lcan = [0, 1, 2].map(() => { const c = document.createElement('canvas'); c.width = GW; c.height = GH; return c; });
+const lctx = lcan.map(c => c.getContext('2d'));
+const limg = lctx.map(c => c.createImageData(GW, GH));
+let scene = null, tick = 0, t = 0, last = 0, raf = 0, lastKey = '';
+const par = { x: 0, y: 0 }, parT = { x: 0, y: 0 }, chn = { x: 0, y: 0 }, ptr = { x: 0, y: 0, at: -1e9, on: false };
+const off = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
+
+/* ───────────────────────── PAINT ───────────────────────── */
+function rgbRamp(role) {
+  // Intensity pulls saturation from muted (0) up to the full ramp (1).
+  const sat = 0.45 + 0.55 * Math.sqrt(state.intensity);
+  const out = new Uint8Array(15);
+  PAL[state.ground][familyOf(role, state.dir)].forEach((h, i) => {
+    const c = [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+    const l = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+    for (let k = 0; k < 3; k++) out[i * 3 + k] = Math.round(l + (c[k] - l) * sat);
+  });
+  return out;
+}
+function paint(role) {
+  const buf = scene.work[role], d = limg[role].data, ramp = rgbRamp(role);
+  for (let p = 0, q = 0; p < buf.length; p++, q += 4) {
+    const s = buf[p];
+    if (s) { const k = (s - 1) * 3; d[q] = ramp[k]; d[q + 1] = ramp[k + 1]; d[q + 2] = ramp[k + 2]; d[q + 3] = 255; }
+    else d[q + 3] = 0;
+  }
+  lctx[role].putImageData(limg[role], 0, 0);
+}
+// The two small animated details. k is the 400ms step; k = 0 is the poster.
+function dynamics(k) {
+  const f = scene.work[FAR], m = scene.work[MID], mask = scene.mid.mask;
+  f.set(scene.base[FAR]); m.set(scene.base[MID]);
+  if (k > 0) for (const st of scene.stars)                 // twinkle: one shade step, held 800ms
+    if (((k >> 1) + st.ph) % st.per === 0) f[(st.y + M) * GW + st.x + M] = st.s - 1;
+  for (const g of scene.glints) for (let i = 0; i < g.len; i++) {
+    const gx = (((g.x + M + i + k) % GW) + GW) % GW, idx = (g.y + M) * GW + gx;
+    if (mask[idx]) m[idx] = g.s;
+  }
+}
+function layerOffsets() {
+  for (const o of off) o.x = o.y = 0;
+  if (!motionOK()) return;
+  const q = v => Math.round(v * S) / S, I = state.intensity;
+  const redRole = state.dir === 'red' ? NEAR : FAR;
+  const breathe = I > 0 ? Math.sin((t / 8000) * Math.PI * 2) : 0;   // NEAR breathes ±1px on 8s
+  const depth = [0.25, 0.5, 1];                                      // parallax: far 1px, mid 2px, near 4px
+  for (let r = 0; r < 3; r++) {
+    /* CHANNEL DRIFT. To be honest about it: chromostereopsis happens in the
+       eye, the picture needs no help to float. This offset is a stage trick
+       layered on top, sliding the red family against the blue family by up to
+       2px toward the pointer so the two planes visibly part. Intensity 0 = none. */
+    const w = r === redRole ? 1 : r === MID ? 0.5 : 0;
+    off[r].x = q(par.x * depth[r] + (r === NEAR ? breathe : 0) + chn.x * w);
+    off[r].y = q(par.y * depth[r] + chn.y * w);
+  }
+}
+function compose(force) {
+  layerOffsets();
+  const key = off.map(o => o.x + ',' + o.y).join('|');
+  if (!force && key === lastKey) return;
+  lastKey = key;
+  vctx.imageSmoothingEnabled = false;
+  vctx.fillStyle = PAL[state.ground].ground;
+  vctx.fillRect(0, 0, view.width, view.height);
+  for (let r = 0; r < 3; r++)
+    vctx.drawImage(lcan[r], Math.round((off[r].x - M) * S), Math.round((off[r].y - M) * S), GW * S, GH * S);
+}
+function repaint() { for (let r = 0; r < 3; r++) paint(r); compose(true); }
+function rebuild() {
+  scene = genScene(state.seed, state.mood);
+  dynamics(motionOK() ? tick : 0);
+  repaint();
+}
+
+/* ───────────────────────── LOOP ───────────────────────── */
+function frame(now) {
+  raf = 0;
+  if (!motionOK() || document.hidden) return;
+  const dt = Math.min(100, now - last); last = now; t += dt;
+  const I = state.intensity, k = Math.min(1, dt * 0.006);
+  parT.x = ptr.on ? -ptr.x * 4 : 0; parT.y = ptr.on ? -ptr.y * 2 : 0;
+  par.x += (parT.x - par.x) * k; par.y += (parT.y - par.y) * k;
+  const live = ptr.on && now - ptr.at < 1400;              // channel drift eases home when idle
+  const cx = live ? ptr.x * 2 * I * I : 0, cy = live ? ptr.y * I * I : 0, k2 = Math.min(1, dt * 0.004);
+  chn.x += (cx - chn.x) * k2; chn.y += (cy - chn.y) * k2;
+  const nt = Math.floor(t / 400);
+  let force = false;
+  if (nt !== tick) { tick = nt; dynamics(tick); paint(FAR); paint(MID); force = true; }
+  compose(force);
+  raf = requestAnimationFrame(frame);
+}
+function sync() {                                          // start, stop or settle the loop
+  if (motionOK() && !document.hidden) {
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+  } else {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (!motionOK() && scene) { par.x = par.y = chn.x = chn.y = 0; dynamics(0); repaint(); }
+  }
+}
+document.addEventListener('visibilitychange', sync);
+reduced.addEventListener ? reduced.addEventListener('change', sync) : reduced.addListener(sync);
+
+function point(e) {
+  const b = view.getBoundingClientRect();
+  ptr.x = Math.max(-1, Math.min(1, ((e.clientX - b.left) / b.width) * 2 - 1));
+  ptr.y = Math.max(-1, Math.min(1, ((e.clientY - b.top) / b.height) * 2 - 1));
+  ptr.at = performance.now(); ptr.on = true;
+}
+view.addEventListener('pointermove', point);
+view.addEventListener('pointerdown', point);
+for (const ev of ['pointerleave', 'pointercancel']) view.addEventListener(ev, () => { ptr.on = false; });
+view.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') ptr.on = false; });
+
+/* ───────────────────────── CHROME ───────────────────────── */
+const ui = { mood: $('mood'), seed: $('seed'), intensity: $('intensity'), drift: $('drift') };
+for (const m of moodNames) ui.mood.add(new Option(m[0].toUpperCase() + m.slice(1), m));
+function reflect() {
+  ui.mood.value = state.mood;
+  if (document.activeElement !== ui.seed) ui.seed.value = state.seed;
+  ui.intensity.value = Math.round(state.intensity * 100);
+  ui.drift.setAttribute('aria-pressed', state.drift);
+  document.querySelectorAll('[data-ground]').forEach(b => b.setAttribute('aria-pressed', b.dataset.ground === state.ground));
+  document.querySelectorAll('[data-dir]').forEach(b => b.setAttribute('aria-pressed', b.dataset.dir === state.dir));
+  try {
+    history.replaceState(null, '', '#' + new URLSearchParams({ seed: state.seed, mood: state.mood, ground: state.ground, dir: state.dir }));
+  } catch (e) {}
+}
+function randomSeed() {
+  const c = 'bdfghklmnprstvz', v = 'aeiou', p = s => s[Math.floor(Math.random() * s.length)];
+  return p(c) + p(v) + p(c) + p(v) + p(c) + p(v) + '-' + String(Math.floor(Math.random() * 900) + 100);
+}
+ui.mood.addEventListener('change', () => { state.mood = ui.mood.value; reflect(); rebuild(); });
+$('moodDice').addEventListener('click', () => {
+  const others = moodNames.filter(m => m !== state.mood);
+  state.mood = others[Math.floor(Math.random() * others.length)]; reflect(); rebuild();
+});
+ui.seed.addEventListener('input', () => { state.seed = ui.seed.value; reflect(); rebuild(); });
+$('seedDice').addEventListener('click', () => { state.seed = randomSeed(); reflect(); rebuild(); });
+document.querySelectorAll('[data-ground]').forEach(b => b.addEventListener('click', () => { state.ground = b.dataset.ground; reflect(); repaint(); }));
+document.querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click', () => { state.dir = b.dataset.dir; reflect(); repaint(); }));
+ui.intensity.addEventListener('input', () => { state.intensity = ui.intensity.value / 100; repaint(); });
+ui.drift.addEventListener('click', () => { state.drift = !state.drift; reflect(); sync(); if (motionOK()) { dynamics(tick); repaint(); } });
+$('save').addEventListener('click', () => {
+  // The backing store already is the 4x frame, so this is exactly what is on screen.
+  view.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `chromodepth-${state.mood}-${state.seed.replace(/[^\w-]+/g, '_') || 'seed'}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }, 'image/png');
+});
+$('full').addEventListener('click', () => {
+  const f = $('frame');
+  if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else (f.requestFullscreen || f.webkitRequestFullscreen || (() => {})).call(f);
+});
+
+reflect();
+rebuild();
+sync();
+
+// Handle for poking at a scene from the console.
+window.CHROMODEPTH = { state, MOODS, PAL, genScene, familyOf, get scene() { return scene; }, get offsets() { return off; }, grid: { VW, VH, M, GW, GH, S } };
+})();
+</script>
+</body>
+</html>
